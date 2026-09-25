@@ -236,12 +236,20 @@ def upload_lens():
     if file.filename == "":
         return jsonify({"success": False, "error": "Empty filename"}), 400
 
-    filename = secure_filename(file.filename)
-    if not (filename.lower().endswith(".lns") or filename.lower().endswith(".zip")):
-        return jsonify({"success": False, "error": "Invalid format. Only .lns or .zip files accepted."}), 400
+    orig_name = file.filename or "uploaded_lens.lns"
+    filename = secure_filename(orig_name)
+    if not filename:
+        ext = ".zip" if orig_name.lower().endswith(".zip") else ".lns"
+        filename = f"lens_{int(time.time())}{ext}"
+    elif not (filename.lower().endswith(".lns") or filename.lower().endswith(".zip")):
+        if orig_name.lower().endswith(".lns") or orig_name.lower().endswith(".zip"):
+            ext = ".zip" if orig_name.lower().endswith(".zip") else ".lns"
+            filename = f"{filename}{ext}"
+        else:
+            return jsonify({"success": False, "error": "Invalid format. Only .lns or .zip files accepted."}), 400
 
     lens_id = str(uuid.uuid4())
-    clean_name = os.path.splitext(filename)[0].replace("_", " ").replace("-", " ").title()
+    clean_name = os.path.splitext(orig_name)[0].replace("_", " ").replace("-", " ").title()
     custom_name = request.form.get("name", "").strip()
     if custom_name:
         clean_name = custom_name

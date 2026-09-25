@@ -131,15 +131,21 @@ function setupTabs() {
   };
 }
 
-function focusUpload() {
-  switchTab('upload');
+window.triggerLensUpload = function() {
+  if (typeof window.switchTab === 'function') {
+    window.switchTab('upload');
+  }
+  const input = document.getElementById('lens-file-input');
+  if (input) {
+    try { input.value = ''; } catch (_) {}
+    input.click();
+  }
   const dz = document.getElementById('lens-dropzone');
   if (dz) {
-    dz.scrollIntoView({ behavior: 'smooth' });
-    dz.classList.add('dragover');
-    setTimeout(() => dz.classList.remove('dragover'), 600);
+    dz.scrollIntoView({ behavior: 'smooth', block: 'center' });
   }
-}
+};
+window.focusUpload = window.triggerLensUpload;
 
 // Fetch lenses from backend
 async function fetchLenses() {
@@ -215,7 +221,10 @@ function renderCarousel() {
   uploadPill.className = 'carousel-lens-item carousel-upload-btn';
   uploadPill.title = 'Upload New Lens';
   uploadPill.innerHTML = '+';
-  uploadPill.onclick = () => focusUpload();
+  uploadPill.onclick = (e) => {
+    e.stopPropagation();
+    window.triggerLensUpload();
+  };
   carousel.appendChild(uploadPill);
 
   loadedLensesList.forEach(lens => {
@@ -742,23 +751,33 @@ function setupDropzone() {
 
 window.handleLensFileInput = (e) => {
   const files = e.target.files;
-  if (files.length > 0) {
+  if (files && files.length > 0) {
     uploadLensBundle(files[0]);
   }
+  try { e.target.value = ''; } catch (_) {}
 };
 
 async function uploadLensBundle(file) {
+  if (!file) return;
+
   const progressContainer = document.getElementById('upload-progress-container');
   const progressBar = document.getElementById('upload-progress-bar');
   const progressText = document.getElementById('upload-progress-text');
 
   if (progressContainer) progressContainer.style.display = 'flex';
-  if (progressBar) progressBar.style.width = '30%';
-  if (progressText) progressText.textContent = `Processing ${file.name} on local GPU...`;
+  if (progressBar) {
+    progressBar.style.width = '25%';
+    progressBar.style.backgroundColor = 'var(--snap-yellow)';
+  }
+  if (progressText) {
+    progressText.style.color = '#ffffff';
+    progressText.textContent = `Processing ${file.name}...`;
+  }
+
+  let localApplied = false;
 
   try {
     // 1. Client-Side Local Power Processing (Works 100% Offline via JSZip + Web Crypto)
-    let localLensEntry = null;
     if (window.JSZip) {
       try {
         const arrayBuffer = await file.arrayBuffer();
@@ -802,7 +821,7 @@ async function uploadLensBundle(file) {
         const cleanName = file.name.replace(/\.[^/.]+$/, '').replace(/[_-]/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
         const localBlobUrl = URL.createObjectURL(file);
 
-        localLensEntry = {
+        const localLensEntry = {
           id: localId,
           name: cleanName,
           filename: file.name,
@@ -842,22 +861,25 @@ async function uploadLensBundle(file) {
         renderLensesList();
         await selectLens(localId);
         switchTab('inspector');
+        localApplied = true;
 
         if (progressBar) progressBar.style.width = '70%';
-        if (progressText) progressText.textContent = 'Active on local GPU! Syncing with server...';
+        if (progressText) progressText.textContent = 'Active on camera! Syncing to server...';
       } catch (localErr) {
         console.warn('[Local Unpack Fallback]', localErr);
       }
     }
 
-    // 2. Background sync with backend if online
+    // 2. Server upload & sync
+    if (progressBar) progressBar.style.width = localApplied ? '85%' : '50%';
+    if (progressText) progressText.textContent = localApplied ? 'Syncing with cloud...' : `Uploading ${file.name}...`;
+
     const formData = new FormData();
     formData.append('file', file);
-    const res = await fetch('/api/upload_lens', { method: 'POST', body: formData }).catch(() => null);
-
-    if (progressBar) progressBar.style.width = '100%';
-    if (progressText) progressText.textContent = 'Lens active & ready on camera!';
-    setTimeout(() => { if (progressContainer) progressContainer.style.display = 'none'; }, 1200);
+    const res = await fetch('/api/upload_lens', { method: 'POST', body: formData }).catch(e => {
+      console.warn('[Upload Network Warning]', e);
+      return null;
+    });
 
     if (res && res.ok) {
       const data = await res.json();
@@ -870,12 +892,38 @@ async function uploadLensBundle(file) {
           iconUrl: data.lens.icon_url ? window.location.origin + data.lens.icon_url : null
         });
         await fetchLenses();
-        await selectLens(data.lens.id);
+        if (!localApplied) {
+          await selectLens(data.lens.id);
+          switchTab('inspector');
+        }
       }
     }
+
+    if (progressBar) progressBar.style.width = '100%';
+    if (progressText) {
+      progressText.textContent = '✨ Lens active & ready on camera!';
+      progressText.style.color = '#00ff88';
+    }
+    setTimeout(() => {
+      if (progressContainer) progressContainer.style.display = 'none';
+      if (progressText) progressText.style.color = '';
+    }, 1800);
+
   } catch (err) {
     console.error('[Upload Handler Error]', err);
-    if (progressContainer) progressContainer.style.display = 'none';
+    if (progressBar) {
+      progressBar.style.width = '100%';
+      progressBar.style.backgroundColor = '#ff4d4d';
+    }
+    if (progressText) {
+      progressText.textContent = `Upload error: ${err.message || err}`;
+      progressText.style.color = '#ff4d4d';
+    }
+    setTimeout(() => {
+      if (progressContainer) progressContainer.style.display = 'none';
+      if (progressBar) progressBar.style.backgroundColor = '';
+      if (progressText) progressText.style.color = '';
+    }, 4000);
   }
 }
 

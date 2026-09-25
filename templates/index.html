@@ -37,7 +37,7 @@
       <a class="btn btn-secondary" href="/api/download_package" download="snap-lens-studio-standalone.zip" title="Download portable package to run locally in 1 click">
         <span class="icon">📦</span> Download Package (1-Click Run)
       </a>
-      <button class="btn btn-primary" onclick="focusUpload()">
+      <button class="btn btn-primary" id="btn-header-upload" onclick="triggerLensUpload()" title="Upload and test a Snapchat .lns bundle">
         <span class="icon">⬆</span> Upload .lns Bundle
       </button>
     </div>
@@ -198,13 +198,13 @@
       <div class="tab-content active" id="tab-upload">
 
         <!-- Drag & Drop Card -->
-        <div class="dropzone-card" id="lens-dropzone">
-          <input type="file" id="lens-file-input" accept=".lns,.zip" style="display:none;" onchange="handleLensFileInput(event)">
+        <div class="dropzone-card" id="lens-dropzone" onclick="triggerLensUpload()" style="cursor: pointer;">
+          <input type="file" id="lens-file-input" accept=".lns,.zip,application/zip,application/octet-stream,*/*" style="display:none;" onchange="handleLensFileInput(event)" onclick="event.stopPropagation()">
           <div class="dropzone-icon">✨</div>
           <h3 class="dropzone-title">Drop Snapchat .lns Bundle Here</h3>
-          <p class="dropzone-sub">Upload any compiled Snapchat Lens bundle (`.lns` or `.zip`).</p>
+          <p class="dropzone-sub">Tap or click to browse files, or drag & drop any `.lns` or `.zip` bundle.</p>
           <div class="dropzone-actions">
-            <button class="btn btn-primary" onclick="document.getElementById('lens-file-input').click()">
+            <button type="button" class="btn btn-primary" id="btn-browse-lens" onclick="event.stopPropagation(); triggerLensUpload();">
               Browse Lens File
             </button>
             <span class="dropzone-note">Instant hot-load into live WebGL2 session</span>
