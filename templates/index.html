@@ -29,8 +29,11 @@
         <span id="engine-status-text">Camera Kit 1.22.0 Ready</span>
       </div>
       <button id="pwa-install-btn" class="btn btn-secondary" style="display:none;" onclick="triggerPwaInstall()" title="Install standalone app to home screen (runs offline)">
-        <span class="icon">📲</span> Install App (Offline)
+        <span class="icon">📲</span> Install PWA
       </button>
+      <a class="btn btn-secondary" href="/download_apk" download="SnapARStudio.apk" title="Download native Android APK (Installable app, offline WebGL2)">
+        <span class="icon">🤖</span> Android APK
+      </a>
       <a class="btn btn-secondary" href="/api/download_package" download="snap-lens-studio-standalone.zip" title="Download portable package to run locally in 1 click">
         <span class="icon">📦</span> Download Package (1-Click Run)
       </a>
@@ -214,6 +217,20 @@
             </div>
             <div class="progress-text" id="upload-progress-text">Uploading and extracting bundle...</div>
           </div>
+        </div>
+
+        <!-- Native Android APK Download Banner -->
+        <div class="apk-download-banner">
+          <div class="apk-banner-info">
+            <span class="apk-banner-icon">🤖</span>
+            <div class="apk-banner-text">
+              <strong>Native Android App Available</strong>
+              <p>Install APK directly on phone for offline WebGL2 AR testing without browser bars.</p>
+            </div>
+          </div>
+          <a class="btn-apk-dl" href="/download_apk" download="SnapARStudio.apk">
+            <span>⬇ Download APK (152KB)</span>
+          </a>
         </div>
 
         <!-- Available Lenses List -->

@@ -155,10 +155,169 @@ body {
   flex: 1;
 }
 
-@media (max-width: 1080px) {
+@media (max-width: 1080px) and (min-width: 769px) {
   .studio-layout {
     grid-template-columns: 1fr;
     max-width: 600px;
+    padding: 20px 16px 40px 16px;
+  }
+}
+
+@media (max-width: 768px) {
+  body {
+    overflow-x: hidden;
+    overflow-y: auto;
+    background: #000000;
+  }
+
+  .app-header {
+    padding: 8px 12px;
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    z-index: 200;
+    background: linear-gradient(180deg, rgba(6, 8, 13, 0.95) 0%, rgba(6, 8, 13, 0.4) 75%, transparent 100%);
+    border-bottom: none;
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+  }
+
+  .brand-sub {
+    display: none;
+  }
+
+  .brand-name {
+    font-size: 15px;
+  }
+
+  .ghost-badge {
+    width: 30px;
+    height: 30px;
+    font-size: 17px;
+    border-radius: 8px;
+  }
+
+  .header-actions {
+    gap: 6px;
+  }
+
+  .header-actions .btn {
+    padding: 6px 10px;
+    font-size: 11px;
+  }
+
+  #sdk-version-pill {
+    font-size: 10px;
+    padding: 4px 8px;
+  }
+
+  .studio-layout {
+    display: flex;
+    flex-direction: column;
+    padding: 0;
+    margin: 0;
+    width: 100%;
+    max-width: 100%;
+    gap: 0;
+  }
+
+  .camera-col {
+    width: 100vw;
+    height: 100dvh;
+    min-height: 100dvh;
+    max-height: 100dvh;
+    position: relative;
+    padding: 0;
+    margin: 0;
+    overflow: hidden;
+  }
+
+  .device-frame {
+    width: 100vw;
+    max-width: 100vw;
+    height: 100dvh;
+    max-height: 100dvh;
+    border: none;
+    border-radius: 0;
+    padding: 0;
+    box-shadow: none;
+    background: #000;
+  }
+
+  .device-screen {
+    border-radius: 0;
+    width: 100%;
+    height: 100%;
+  }
+
+  .device-notch {
+    display: none;
+  }
+
+  .camera-hud-top {
+    top: 56px;
+    left: 12px;
+    right: 12px;
+  }
+
+  .camera-quick-toggles {
+    top: 110px;
+    right: 10px;
+    gap: 8px;
+  }
+
+  .icon-toggle-btn {
+    width: 40px;
+    height: 40px;
+  }
+
+  .icon-toggle-btn span {
+    font-size: 15px;
+  }
+
+  .icon-toggle-btn small {
+    font-size: 7.5px;
+  }
+
+  .camera-hud-bottom {
+    bottom: 78px;
+  }
+
+  .shutter-ring {
+    width: 72px;
+    height: 72px;
+  }
+
+  .snap-shutter-btn {
+    width: 58px;
+    height: 58px;
+  }
+
+  .lens-carousel-container {
+    bottom: 10px;
+    height: 60px;
+  }
+
+  .carousel-lens-item {
+    width: 44px;
+    height: 44px;
+  }
+
+  .input-source-card {
+    border-radius: 0;
+    max-width: 100%;
+    border-left: none;
+    border-right: none;
+    padding: 12px;
+    margin: 0;
+    background: #0a0d14;
+  }
+
+  .tools-col {
+    padding: 16px 12px 60px 12px;
+    width: 100%;
+    background: #06080d;
   }
 }
 
@@ -1355,4 +1514,73 @@ body {
   gap: 10px;
   padding: 14px 20px;
   border-top: 1px solid var(--border-subtle);
+}
+
+/* Native Android APK Promo Banner */
+.apk-download-banner {
+  background: linear-gradient(135deg, rgba(30, 41, 59, 0.7) 0%, rgba(15, 23, 42, 0.9) 100%);
+  border: 1px solid rgba(0, 242, 254, 0.25);
+  border-radius: var(--radius-md);
+  padding: 14px 18px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  margin-bottom: 20px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.35);
+}
+
+.apk-banner-info {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.apk-banner-icon {
+  font-size: 26px;
+  background: rgba(0, 242, 254, 0.12);
+  width: 44px;
+  height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 10px;
+  flex-shrink: 0;
+}
+
+.apk-banner-text strong {
+  display: block;
+  font-size: 13.5px;
+  font-weight: 700;
+  color: #fff;
+  margin-bottom: 2px;
+}
+
+.apk-banner-text p {
+  font-size: 11px;
+  color: var(--text-muted);
+  line-height: 1.35;
+  margin: 0;
+}
+
+.btn-apk-dl {
+  background: linear-gradient(135deg, #00f2fe 0%, #4facfe 100%);
+  color: #000;
+  font-weight: 700;
+  font-size: 12px;
+  padding: 8px 14px;
+  border-radius: 8px;
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+  transition: all 0.2s ease;
+  box-shadow: 0 0 12px rgba(0, 242, 254, 0.35);
+}
+
+.btn-apk-dl:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 0 18px rgba(0, 242, 254, 0.6);
+  color: #000;
 }

@@ -20,9 +20,10 @@ from flask import Flask, request, jsonify, render_template, send_from_directory,
 from werkzeug.utils import secure_filename
 
 BASE_DIR = os.path.abspath(os.path.dirname(__file__))
+STATIC_DIR = os.path.join(BASE_DIR, "static")
 UPLOADS_DIR = os.path.join(BASE_DIR, "uploads")
 SNAPS_DIR = os.path.join(BASE_DIR, "snaps")
-SAMPLES_DIR = os.path.join(BASE_DIR, "static", "samples")
+SAMPLES_DIR = os.path.join(STATIC_DIR, "samples")
 REGISTRY_FILE = os.path.join(UPLOADS_DIR, "registry.json")
 
 os.makedirs(UPLOADS_DIR, exist_ok=True)
@@ -421,6 +422,23 @@ def serve_upload(filename):
 @app.route("/snaps/<path:filename>")
 def serve_snap(filename):
     return send_from_directory(SNAPS_DIR, filename, as_attachment=False)
+
+
+@app.route("/download_apk")
+@app.route("/SnapARStudio.apk")
+def download_apk():
+    """Serve native Android APK for offline testing."""
+    apk_path = os.path.join(STATIC_DIR, "SnapARStudio.apk")
+    if not os.path.exists(apk_path):
+        apk_path = "/root/apk-builder/SnapARStudio.apk"
+    if os.path.exists(apk_path):
+        return send_file(
+            apk_path,
+            mimetype="application/vnd.android.package-archive",
+            as_attachment=True,
+            download_name="SnapARStudio.apk"
+        )
+    return jsonify({"error": "APK not built yet"}), 404
 
 
 @app.route("/api/download_package")
