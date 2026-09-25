@@ -423,9 +423,11 @@ def serve_snap(filename):
 
 
 def main():
+    default_port = int(os.environ.get("PORT", 8888))
+    default_host = os.environ.get("HOST", "0.0.0.0")
     parser = argparse.ArgumentParser(description="SnapAR Studio Web Lens Tester")
-    parser.add_argument("--port", type=int, default=8888, help="Port to bind server (default: 8888)")
-    parser.add_argument("--host", type=str, default="0.0.0.0", help="Host interface (default: 0.0.0.0)")
+    parser.add_argument("--port", type=int, default=default_port, help=f"Port to bind server (default: {default_port})")
+    parser.add_argument("--host", type=str, default=default_host, help=f"Host interface (default: {default_host})")
     args = parser.parse_args()
 
     print("=" * 70)
