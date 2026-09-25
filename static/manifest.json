@@ -1,0 +1,25 @@
+{
+  "name": "SnapAR Studio - Web Lens Tester",
+  "short_name": "SnapAR Studio",
+  "description": "Offline-ready Web AR Lens Testing Suite with Camera Kit WebGL2",
+  "start_url": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#06080d",
+  "theme_color": "#fffc00",
+  "categories": ["photo", "video", "utilities", "productivity"],
+  "icons": [
+    {
+      "src": "/static/samples/abyssal_crown_icon.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/static/samples/abyssal_crown_icon.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}

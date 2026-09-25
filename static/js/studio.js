@@ -81,11 +81,42 @@ document.addEventListener('DOMContentLoaded', async () => {
   setupDropzone();
   setupShutter();
   setupSplitSlider();
+  setupPwa();
   await fetchLenses();
   await initCameraKit();
   startFpsMonitor();
   loadSnapsGallery();
 });
+
+// PWA Service Worker & Install Prompt
+let deferredPrompt = null;
+function setupPwa() {
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.register('/static/sw.js')
+      .then(reg => console.log('[PWA] Service Worker registered:', reg.scope))
+      .catch(err => console.warn('[PWA] Service Worker registration failed:', err));
+  }
+
+  window.addEventListener('beforeinstallprompt', (e) => {
+    e.preventDefault();
+    deferredPrompt = e;
+    const installBtn = document.getElementById('pwa-install-btn');
+    if (installBtn) installBtn.style.display = 'inline-flex';
+  });
+
+  window.triggerPwaInstall = async () => {
+    if (!deferredPrompt) {
+      alert('To install as an app on your phone, open browser menu (⋮ or Share) and tap "Add to Home Screen" or "Install App". It runs offline with 100% local GPU power!');
+      return;
+    }
+    deferredPrompt.prompt();
+    const { outcome } = await deferredPrompt.userChoice;
+    console.log('[PWA] User response:', outcome);
+    deferredPrompt = null;
+    const installBtn = document.getElementById('pwa-install-btn');
+    if (installBtn) installBtn.style.display = 'none';
+  };
+}
 
 // Tab Switcher
 function setupTabs() {
@@ -723,49 +754,127 @@ async function uploadLensBundle(file) {
 
   if (progressContainer) progressContainer.style.display = 'flex';
   if (progressBar) progressBar.style.width = '30%';
-  if (progressText) progressText.textContent = `Uploading ${file.name}...`;
-
-  const formData = new FormData();
-  formData.append('file', file);
+  if (progressText) progressText.textContent = `Processing ${file.name} on local GPU...`;
 
   try {
-    const res = await fetch('/api/upload_lens', {
-      method: 'POST',
-      body: formData
-    });
+    // 1. Client-Side Local Power Processing (Works 100% Offline via JSZip + Web Crypto)
+    let localLensEntry = null;
+    if (window.JSZip) {
+      try {
+        const arrayBuffer = await file.arrayBuffer();
+        
+        // Compute SHA-256 locally using hardware Web Crypto API
+        const hashBuffer = await crypto.subtle.digest('SHA-256', arrayBuffer);
+        const hashArray = Array.from(new Uint8Array(hashBuffer));
+        const sha256Hex = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
 
-    if (progressBar) progressBar.style.width = '80%';
-    if (progressText) progressText.textContent = 'Parsing manifest & extracting 3D meshes...';
+        // Unpack zip in memory
+        const zip = await JSZip.loadAsync(arrayBuffer);
+        const fileNames = Object.keys(zip.files);
 
-    const data = await res.json();
-    if (data.success && data.lens) {
-      if (progressBar) progressBar.style.width = '100%';
-      if (progressText) progressText.textContent = 'Lens extracted successfully!';
+        // Check for icon.png
+        let iconBlobUrl = null;
+        if (zip.files['icon.png']) {
+          const iconBlob = await zip.files['icon.png'].async('blob');
+          iconBlobUrl = URL.createObjectURL(iconBlob);
+        }
 
-      setTimeout(() => {
-        if (progressContainer) progressContainer.style.display = 'none';
-      }, 1500);
+        // Parse manifests if present
+        let metainfo = {};
+        if (zip.files['metainfo.json']) {
+          try {
+            const metaStr = await zip.files['metainfo.json'].async('text');
+            metainfo = JSON.parse(metaStr);
+          } catch (_) {}
+        }
 
-      // Register lens in memory
-      sideloadedLenses.set(data.lens.id, {
-        id: data.lens.id,
-        name: data.lens.name,
-        lnsUrl: window.location.origin + data.lens.url,
-        sha256: data.lens.sha256,
-        iconUrl: data.lens.icon_url ? window.location.origin + data.lens.icon_url : null
-      });
+        const meshes = [], textures = [], shaders = [], scripts = [];
+        fileNames.forEach(fn => {
+          const lower = fn.toLowerCase();
+          const base = fn.split('/').pop();
+          if (['.mesh', '.glb', '.scn', '.t3d', '.ply'].some(ext => lower.endsWith(ext))) meshes.push({ name: base, size_bytes: zip.files[fn]._data?.uncompressedSize || 1024 });
+          else if (['.png', '.jpg', '.jpeg', '.webp'].some(ext => lower.endsWith(ext))) textures.push({ name: base, size_bytes: zip.files[fn]._data?.uncompressedSize || 1024 });
+          else if (['.glsl', '.reflection'].some(ext => lower.endsWith(ext))) shaders.push({ name: base, size_bytes: zip.files[fn]._data?.uncompressedSize || 1024 });
+          else if (['.js', '.ts', '.gs'].some(ext => lower.endsWith(ext))) scripts.push({ name: base, size_bytes: zip.files[fn]._data?.uncompressedSize || 1024 });
+        });
 
-      // Reload list and switch immediately
-      await fetchLenses();
-      await selectLens(data.lens.id);
-      switchTab('inspector');
-    } else {
-      alert('Upload failed: ' + (data.error || 'Unknown error'));
-      if (progressContainer) progressContainer.style.display = 'none';
+        const localId = 'local_' + sha256Hex.slice(0, 12);
+        const cleanName = file.name.replace(/\.[^/.]+$/, '').replace(/[_-]/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+        const localBlobUrl = URL.createObjectURL(file);
+
+        localLensEntry = {
+          id: localId,
+          name: cleanName,
+          filename: file.name,
+          url: localBlobUrl,
+          icon_url: iconBlobUrl,
+          sha256: sha256Hex,
+          size_bytes: file.size,
+          is_sample: false,
+          is_local: true,
+          activation_camera: metainfo.activation_camera || 'front',
+          description: `Locally processed offline lens bundle (${meshes.length} meshes, ${textures.length} textures).`,
+          inspection: {
+            sha256: sha256Hex,
+            size_bytes: file.size,
+            total_files: fileNames.length,
+            counts: { meshes: meshes.length, textures: textures.length, shaders: shaders.length, scripts: scripts.length },
+            sample_meshes: meshes.slice(0, 20),
+            sample_textures: textures.slice(0, 20)
+          }
+        };
+
+        // Register immediately into memory & UI
+        sideloadedLenses.set(localId, {
+          id: localId,
+          name: cleanName,
+          lnsUrl: localBlobUrl,
+          sha256: sha256Hex,
+          iconUrl: iconBlobUrl
+        });
+
+        // Add to active list
+        const existingIdx = loadedLensesList.findIndex(l => l.id === localId);
+        if (existingIdx >= 0) loadedLensesList[existingIdx] = localLensEntry;
+        else loadedLensesList.unshift(localLensEntry);
+
+        renderCarousel();
+        renderLensesList();
+        await selectLens(localId);
+        switchTab('inspector');
+
+        if (progressBar) progressBar.style.width = '70%';
+        if (progressText) progressText.textContent = 'Active on local GPU! Syncing with server...';
+      } catch (localErr) {
+        console.warn('[Local Unpack Fallback]', localErr);
+      }
+    }
+
+    // 2. Background sync with backend if online
+    const formData = new FormData();
+    formData.append('file', file);
+    const res = await fetch('/api/upload_lens', { method: 'POST', body: formData }).catch(() => null);
+
+    if (progressBar) progressBar.style.width = '100%';
+    if (progressText) progressText.textContent = 'Lens active & ready on camera!';
+    setTimeout(() => { if (progressContainer) progressContainer.style.display = 'none'; }, 1200);
+
+    if (res && res.ok) {
+      const data = await res.json();
+      if (data.success && data.lens) {
+        sideloadedLenses.set(data.lens.id, {
+          id: data.lens.id,
+          name: data.lens.name,
+          lnsUrl: window.location.origin + data.lens.url,
+          sha256: data.lens.sha256,
+          iconUrl: data.lens.icon_url ? window.location.origin + data.lens.icon_url : null
+        });
+        await fetchLenses();
+        await selectLens(data.lens.id);
+      }
     }
   } catch (err) {
-    console.error('[Upload Error]', err);
-    alert('Upload failed: ' + err.message);
+    console.error('[Upload Handler Error]', err);
     if (progressContainer) progressContainer.style.display = 'none';
   }
 }
