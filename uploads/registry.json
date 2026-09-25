@@ -1,0 +1,501 @@
+[
+  {
+    "id": "676cf10e-179c-4bb9-9b80-ab69f85a4e56",
+    "name": "Abyssal Crown",
+    "filename": "676cf10e-179c-4bb9-9b80-ab69f85a4e56_abyssal_crown.lns",
+    "url": "/uploads/676cf10e-179c-4bb9-9b80-ab69f85a4e56_abyssal_crown.lns",
+    "icon_url": "/uploads/icon_6ed4b8bd4715.png",
+    "sha256": "6ed4b8bd471563a78b9e3ca97e6139e7ff0fc6d08b1051c0c5b205ce2a0061cc",
+    "size_bytes": 5258709,
+    "is_sample": false,
+    "created_at": "2026-09-25T07:08:28.859189",
+    "activation_camera": "front",
+    "description": "Custom uploaded lens bundle (6 meshes, 32 textures).",
+    "inspection": {
+      "sha256": "6ed4b8bd471563a78b9e3ca97e6139e7ff0fc6d08b1051c0c5b205ce2a0061cc",
+      "size_bytes": 5258709,
+      "uncompressed_bytes": 9499737,
+      "compression_ratio": 44.6,
+      "total_files": 257,
+      "has_icon": true,
+      "icon_filename": "icon_6ed4b8bd4715.png",
+      "activation_camera": "front",
+      "hints": [
+        "lens_hint_aim_camera_at_the_sky",
+        "lens_hint_blow_a_kiss",
+        "lens_hint_blow_a_kiss_voice_changer",
+        "lens_hint_come_closer",
+        "lens_hint_do_not_smile",
+        "lens_hint_do_not_try_with_a_friend",
+        "lens_hint_draw_with_your_finger",
+        "lens_hint_find_face",
+        "lens_hint_find_image",
+        "lens_hint_find_marker",
+        "lens_hint_find_snapcode",
+        "lens_hint_kiss",
+        "lens_hint_kiss_again",
+        "lens_hint_look_around",
+        "lens_hint_look_down",
+        "lens_hint_look_left",
+        "lens_hint_look_right",
+        "lens_hint_look_up",
+        "lens_hint_make_some_noise",
+        "lens_hint_move_your_head",
+        "lens_hint_nod_your_head",
+        "lens_hint_now_kiss",
+        "lens_hint_now_open_your_mouth",
+        "lens_hint_now_raise_your_eyebrows",
+        "lens_hint_now_smile",
+        "lens_hint_open_your_mouth",
+        "lens_hint_open_your_mouth_again",
+        "lens_hint_open_your_mouth_voice_changer",
+        "lens_hint_pick_a_face",
+        "lens_hint_pick_a_photo",
+        "lens_hint_pick_an_image",
+        "lens_hint_raise_eyebrows_or_open_mouth",
+        "lens_hint_raise_your_eyebrows",
+        "lens_hint_raise_your_eyebrows_again",
+        "lens_hint_raise_your_eyebrows_voice_changer",
+        "lens_hint_rotate_your_phone",
+        "lens_hint_say_something",
+        "lens_hint_show_your_hand",
+        "lens_hint_smile",
+        "lens_hint_smile_again",
+        "lens_hint_smile_voice_changer",
+        "lens_hint_swap_camera",
+        "lens_hint_tap",
+        "lens_hint_tap_a_surface",
+        "lens_hint_tap_ground",
+        "lens_hint_tap_ground_to_place",
+        "lens_hint_tap_surface_to_place",
+        "lens_hint_tilt_your_head",
+        "lens_hint_try_friend",
+        "lens_hint_try_rear_camera",
+        "lens_hint_turn_around",
+        "lens_hint_voice_changer",
+        "lens_hint_walk_through_the_door"
+      ],
+      "manifest_assets": [
+        "EASYLENS_RTLNS_REMOTE_PREFAB",
+        "LENSCORE_FACETRACKING_FACE_MESH_FITTER_V3",
+        "LENSCORE_FACETRACKING_FACE_MESH_MODEL_V3",
+        "LENSCORE_FACETRACKING_PIPELINE_XML",
+        "LENSCORE_SEGMENTATION_BINARY_BODY_V2",
+        "LENS_STUDIO_VEM_ICONS",
+        "LENS_STUDIO_VEM_ICONS_TEST"
+      ],
+      "counts": {
+        "meshes": 6,
+        "textures": 32,
+        "shaders": 42,
+        "scripts": 173,
+        "audio": 0,
+        "others": 4
+      },
+      "sample_meshes": [
+        {
+          "name": "geometry_0.mesh",
+          "path": "5761ebbd-9ef5-4d40-8969-790a09fe9f61/be4ed0497d93c803d5e61d30e96343b2/Data/Meshes/geometry_0.mesh",
+          "size_bytes": 918922,
+          "compressed_bytes": 414658
+        },
+        {
+          "name": "mesh_sparkles.mesh",
+          "path": "c379d133-3464-7a49-a50f-a977f683e544/c74ee29974284da895050e99f119ac64/Data/mesh_sparkles.mesh",
+          "size_bytes": 216816,
+          "compressed_bytes": 64869
+        },
+        {
+          "name": "loader.t3d",
+          "path": "17e8a703-3a76-3582-de25-98edef8d644c/175ba2a1cbf429a08795cf27a88668f6/Data/loader.t3d",
+          "size_bytes": 55,
+          "compressed_bytes": 47
+        },
+        {
+          "name": "scene.scn",
+          "path": "scene.scn",
+          "size_bytes": 560432,
+          "compressed_bytes": 98006
+        },
+        {
+          "name": "geometry_0.mesh",
+          "path": "d4a3cd11-750b-44de-842a-ec5492878f19/ae21978236d5ae9533024b5574c86f5a/Data/Meshes/geometry_0.mesh",
+          "size_bytes": 612922,
+          "compressed_bytes": 292137
+        },
+        {
+          "name": "Box.mesh",
+          "path": "3bb2aa22-eeab-cf37-1024-176ea98c959d/ac96cb87b513efde510038bf6f3f4e55/Data/Box.mesh",
+          "size_bytes": 2352,
+          "compressed_bytes": 750
+        }
+      ],
+      "sample_textures": [
+        {
+          "name": "Rotate.png",
+          "path": "e8e14788-4d00-abd1-e07d-3e05c42b8177/52590eeb858bcd9d4f951b12e899ddaf/Data/Rotate.png",
+          "size_bytes": 1551,
+          "compressed_bytes": 1556
+        },
+        {
+          "name": "Grain.png",
+          "path": "5294a49b-5fbe-9f76-1020-37d487e22c70/10b5bb8bf1706507f0dffc5652aad856/Data/Grain.png",
+          "size_bytes": 814,
+          "compressed_bytes": 819
+        },
+        {
+          "name": "edit-icon-selected.png",
+          "path": "a588665a-22e2-59eb-686f-1b12b3f63523/fde5b71623568c2393409be60f3f25be/Data/edit-icon-selected.png",
+          "size_bytes": 12875,
+          "compressed_bytes": 12229
+        },
+        {
+          "name": "User.png",
+          "path": "21ba9f10-8d27-5285-df58-fcb769eacb63/b5ce82b2a06cf497feebabb068dbb59b/Data/User.png",
+          "size_bytes": 2434,
+          "compressed_bytes": 2259
+        },
+        {
+          "name": "Mask.png",
+          "path": "3a872cc3-0f2f-fba9-8a03-6a04e89e47bc/8c8405944a2f8aec7b8b37fccad5862d/Data/Mask.png",
+          "size_bytes": 1307,
+          "compressed_bytes": 1312
+        },
+        {
+          "name": "icon.png",
+          "path": "icon.png",
+          "size_bytes": 187782,
+          "compressed_bytes": 176239
+        },
+        {
+          "name": "Bright.png",
+          "path": "c392adec-d038-1674-0854-055058f7f153/97e778c27fecc4523d0db3408350c3ac/Data/Bright.png",
+          "size_bytes": 1512,
+          "compressed_bytes": 1517
+        },
+        {
+          "name": "Image_0.png",
+          "path": "5761ebbd-9ef5-4d40-8969-790a09fe9f61/be4ed0497d93c803d5e61d30e96343b2/Data/Textures/Image_0.png",
+          "size_bytes": 1478665,
+          "compressed_bytes": 1479120
+        },
+        {
+          "name": "carousel_item_none.png",
+          "path": "c2ddd12b-3455-1b1e-c900-f6e69e35d400/e0c3ac42c0488e47940cba29c930f56c/Data/carousel_item_none.png",
+          "size_bytes": 3858,
+          "compressed_bytes": 3601
+        },
+        {
+          "name": "Scale.png",
+          "path": "70f8c7ae-e54a-2113-2e58-6cdfab047900/8ed37af80aea96dd18ce8f3717bfc3f5/Data/Scale.png",
+          "size_bytes": 796,
+          "compressed_bytes": 801
+        },
+        {
+          "name": "Rotate Y.png",
+          "path": "7446f0f5-08bd-4827-d828-80787f77cc1e/0593133bc3fb14cb5987af9ef55c66ec/Data/Rotate Y.png",
+          "size_bytes": 4330,
+          "compressed_bytes": 4269
+        },
+        {
+          "name": "shadow.png",
+          "path": "e7fb9d29-f189-4f3f-ef72-6a513505af6c/96984f8bf926eb58b863f0379502dd17/Data/shadow.png",
+          "size_bytes": 2564,
+          "compressed_bytes": 2001
+        },
+        {
+          "name": "sparkle.jpg",
+          "path": "19932c81-f774-8ab7-0cae-0729f4a0917d/4c17c9215c6730cb9039179218263543/Data/sparkle.jpg",
+          "size_bytes": 2406,
+          "compressed_bytes": 2272
+        },
+        {
+          "name": "Pipette Icon.png",
+          "path": "6dd2c40c-5c6e-f76f-c722-48435b0fdc03/dea37dad7c2d474f85a0bee589514ab1/Data/Pipette Icon.png",
+          "size_bytes": 733,
+          "compressed_bytes": 738
+        },
+        {
+          "name": "Specular.jpeg",
+          "path": "7cbdf0c3-7f52-4ecd-a31a-254c125dcd1a/41e6f84045ef8a4c1fd72771def71940/Data/Specular.jpeg",
+          "size_bytes": 39658,
+          "compressed_bytes": 39289
+        },
+        {
+          "name": "Diffuse.jpeg",
+          "path": "7cbdf0c3-7f52-4ecd-a31a-254c125dcd1a/41e6f84045ef8a4c1fd72771def71940/Data/Diffuse.jpeg",
+          "size_bytes": 1448,
+          "compressed_bytes": 1236
+        },
+        {
+          "name": "default.png",
+          "path": "0d22e44b-7cff-1b1a-9444-a989fbb15520/ab6e887fc9dab366b81b8754722a03a3/Data/default.png",
+          "size_bytes": 740,
+          "compressed_bytes": 745
+        },
+        {
+          "name": "Visible.png",
+          "path": "9ec4b049-766d-ce15-0a44-addf5307267e/01bd6bccb7f28ac9dc53cd4f0512a021/Data/Visible.png",
+          "size_bytes": 4320,
+          "compressed_bytes": 4325
+        },
+        {
+          "name": "Rotate X.png",
+          "path": "1bbcdbc2-ece6-6476-989c-0db13427dab0/469df4bb3377661b1f450d6d01416de2/Data/Rotate X.png",
+          "size_bytes": 3868,
+          "compressed_bytes": 3803
+        },
+        {
+          "name": "Slider_pixels_texture.jpg",
+          "path": "1f8480ee-1ea1-719a-e964-c14d0daf39ab/25f854c47dd113f903f501c83bf9fa42/Data/Slider_pixels_texture.jpg",
+          "size_bytes": 1340,
+          "compressed_bytes": 712
+        }
+      ],
+      "sample_shaders": [
+        {
+          "name": "sparkles_accum.glsl.reflection",
+          "path": "b7c6e689-83a8-4f36-7feb-6c87773198c9/8441db4adfe8af121dcffa42a7313dff/Data/b957130/mobile/glsles300/sparkles_accum.glsl.reflection",
+          "size_bytes": 5784,
+          "compressed_bytes": 1469
+        },
+        {
+          "name": "sparkles_accum.glsl",
+          "path": "b7c6e689-83a8-4f36-7feb-6c87773198c9/8441db4adfe8af121dcffa42a7313dff/Data/b957130/mobile/glsles300/sparkles_accum.glsl",
+          "size_bytes": 63555,
+          "compressed_bytes": 12195
+        },
+        {
+          "name": "occluder.glsl",
+          "path": "a49c49e3-8b0d-4764-c379-9b64a43296fa/291f0317d8b08219da9f6b681ca398bb/Data/b957130/mobile/glsles300/occluder.glsl",
+          "size_bytes": 55743,
+          "compressed_bytes": 10752
+        },
+        {
+          "name": "occluder.glsl.reflection",
+          "path": "a49c49e3-8b0d-4764-c379-9b64a43296fa/291f0317d8b08219da9f6b681ca398bb/Data/b957130/mobile/glsles300/occluder.glsl.reflection",
+          "size_bytes": 5252,
+          "compressed_bytes": 1379
+        },
+        {
+          "name": "flat.glsl",
+          "path": "3231ea82-efbe-2c68-62fc-a0d1c4526cac/8e27f3bdafd428624b8ed238bdda4fb3/Data/b957130/mobile/glsles300/flat.glsl",
+          "size_bytes": 62854,
+          "compressed_bytes": 11930
+        },
+        {
+          "name": "flat.glsl.reflection",
+          "path": "3231ea82-efbe-2c68-62fc-a0d1c4526cac/8e27f3bdafd428624b8ed238bdda4fb3/Data/b957130/mobile/glsles300/flat.glsl.reflection",
+          "size_bytes": 5866,
+          "compressed_bytes": 1488
+        },
+        {
+          "name": "pbr.glsl.reflection",
+          "path": "4d695e65-1a61-2ba0-e90e-8e1d1064833c/20e648e31cf9e2ce06b23cf7cbf4f5ee/Data/b957130/mobile/glsles300/pbr.glsl.reflection",
+          "size_bytes": 5818,
+          "compressed_bytes": 1490
+        },
+        {
+          "name": "pbr.glsl",
+          "path": "4d695e65-1a61-2ba0-e90e-8e1d1064833c/20e648e31cf9e2ce06b23cf7cbf4f5ee/Data/b957130/mobile/glsles300/pbr.glsl",
+          "size_bytes": 63555,
+          "compressed_bytes": 12219
+        },
+        {
+          "name": "sparkles_normalize.glsl",
+          "path": "f8baf39d-9166-e6d0-1893-7a86020b0ab7/b7162feaed5422203edc08bfa0ad4daa/Data/b957130/mobile/glsles300/sparkles_normalize.glsl",
+          "size_bytes": 68699,
+          "compressed_bytes": 12903
+        },
+        {
+          "name": "sparkles_normalize.glsl.reflection",
+          "path": "f8baf39d-9166-e6d0-1893-7a86020b0ab7/b7162feaed5422203edc08bfa0ad4daa/Data/b957130/mobile/glsles300/sparkles_normalize.glsl.reflection",
+          "size_bytes": 6292,
+          "compressed_bytes": 1541
+        },
+        {
+          "name": "sparkles_reduce.glsl.reflection",
+          "path": "c76fbd02-dad9-07d5-1bd9-64c74c8742a8/2a123fffc46294565743a2f45b539439/Data/b957130/mobile/glsles300/sparkles_reduce.glsl.reflection",
+          "size_bytes": 5804,
+          "compressed_bytes": 1467
+        },
+        {
+          "name": "sparkles_reduce.glsl",
+          "path": "c76fbd02-dad9-07d5-1bd9-64c74c8742a8/2a123fffc46294565743a2f45b539439/Data/b957130/mobile/glsles300/sparkles_reduce.glsl",
+          "size_bytes": 69814,
+          "compressed_bytes": 12623
+        },
+        {
+          "name": "sparkles_draw_reduce.glsl.reflection",
+          "path": "80a24918-810b-d0b3-ccbb-3ee33df1c6e1/79b7f41625e388cbe16d4227609542b6/Data/b957130/mobile/glsles300/sparkles_draw_reduce.glsl.reflection",
+          "size_bytes": 5784,
+          "compressed_bytes": 1470
+        },
+        {
+          "name": "sparkles_draw_reduce.glsl",
+          "path": "80a24918-810b-d0b3-ccbb-3ee33df1c6e1/79b7f41625e388cbe16d4227609542b6/Data/b957130/mobile/glsles300/sparkles_draw_reduce.glsl",
+          "size_bytes": 63461,
+          "compressed_bytes": 12196
+        },
+        {
+          "name": "sparkles_avg_minmax.glsl",
+          "path": "3d7ef3e6-2923-313c-a0db-ff0b2f536e93/ced5a54d483339efeea46cb30749cc4c/Data/b957130/mobile/glsles300/sparkles_avg_minmax.glsl",
+          "size_bytes": 70181,
+          "compressed_bytes": 13224
+        },
+        {
+          "name": "sparkles_avg_minmax.glsl.reflection",
+          "path": "3d7ef3e6-2923-313c-a0db-ff0b2f536e93/ced5a54d483339efeea46cb30749cc4c/Data/b957130/mobile/glsles300/sparkles_avg_minmax.glsl.reflection",
+          "size_bytes": 6292,
+          "compressed_bytes": 1540
+        },
+        {
+          "name": "Material_0.glsl.reflection",
+          "path": "5761ebbd-9ef5-4d40-8969-790a09fe9f61/be4ed0497d93c803d5e61d30e96343b2/Data/.hidden/b957130/mobile/glsles300/Material_0.glsl.reflection",
+          "size_bytes": 15400,
+          "compressed_bytes": 2979
+        },
+        {
+          "name": "Material_0.glsl",
+          "path": "5761ebbd-9ef5-4d40-8969-790a09fe9f61/be4ed0497d93c803d5e61d30e96343b2/Data/.hidden/b957130/mobile/glsles300/Material_0.glsl",
+          "size_bytes": 183449,
+          "compressed_bytes": 32644
+        },
+        {
+          "name": "Slider shader.glsl",
+          "path": "22770ff0-c88f-eb4c-a922-f923452deb4d/58b55388630735d4ac50762867564aa5/Data/b957130/mobile/glsles300/Slider shader.glsl",
+          "size_bytes": 88883,
+          "compressed_bytes": 16282
+        },
+        {
+          "name": "Slider shader.glsl.reflection",
+          "path": "22770ff0-c88f-eb4c-a922-f923452deb4d/58b55388630735d4ac50762867564aa5/Data/b957130/mobile/glsles300/Slider shader.glsl.reflection",
+          "size_bytes": 6338,
+          "compressed_bytes": 1543
+        }
+      ],
+      "sample_scripts": [
+        {
+          "name": "UIColorPickerPanel_c.js",
+          "path": "7f1781bc-12f1-1c05-43e3-158ea99b902a/505448cc4f9efca4af03557401305e40/Data/81e60be8deb0b534d8821ad934018e6b/UIColorPickerPanel_c.js",
+          "size_bytes": 1529,
+          "compressed_bytes": 636
+        },
+        {
+          "name": "UIColorPickerPanel.js",
+          "path": "7f1781bc-12f1-1c05-43e3-158ea99b902a/505448cc4f9efca4af03557401305e40/Data/0ba4269f3afd46d8b80902dfaab8e6f6/UIColorPickerPanel.js",
+          "size_bytes": 31629,
+          "compressed_bytes": 5853
+        },
+        {
+          "name": "EasyLensRtlnsNamespace.js",
+          "path": "3723f61c-7752-e30b-e996-7bfaa87d3628/679a7bd6a470e095077ab73e1aac11b3/Data/e60b9b2d58718c2319b3085d590eee12/EasyLensRtlnsNamespace.js",
+          "size_bytes": 693,
+          "compressed_bytes": 353
+        },
+        {
+          "name": "IconProvider.js",
+          "path": "6f842074-f32c-b722-874a-6c811070dca1/8d95bf4acc51f550f659955a16f43ef3/Data/43d887f05486533a3b089438bc42ce2a/IconProvider.js",
+          "size_bytes": 3741,
+          "compressed_bytes": 931
+        },
+        {
+          "name": "index.js",
+          "path": "cea0c323-b047-bcae-a2a9-43f80f472a16/931af095a6d4b849f9723b0c9cac9dff/Data/ac269ccad8fdb309186576a45226c95b/index.js",
+          "size_bytes": 1557,
+          "compressed_bytes": 425
+        },
+        {
+          "name": "Gizmo3DButtonsResources.js",
+          "path": "b809cf43-f8c2-c425-b03c-8fc03fc4cfb7/e47bba318be57986bf513c790c27250c/Data/2bb2c4e6e1510ca785753d9239111f7d/Gizmo3DButtonsResources.js",
+          "size_bytes": 4781,
+          "compressed_bytes": 1439
+        },
+        {
+          "name": "Gizmo3DButtonsResources_c.js",
+          "path": "b809cf43-f8c2-c425-b03c-8fc03fc4cfb7/e47bba318be57986bf513c790c27250c/Data/c7b86d62f3034ff4c601cf9481cc799f/Gizmo3DButtonsResources_c.js",
+          "size_bytes": 1577,
+          "compressed_bytes": 638
+        },
+        {
+          "name": "UIStackLayout.js",
+          "path": "6bd7fd82-0ac0-10db-863d-dbdb58716b1e/1ccd44841f731cc62b74726e5b9f136f/Data/27dc2cd6b5685708b26279524662a7cf/UIStackLayout.js",
+          "size_bytes": 9893,
+          "compressed_bytes": 2571
+        },
+        {
+          "name": "UIStackLayout_c.js",
+          "path": "6bd7fd82-0ac0-10db-863d-dbdb58716b1e/1ccd44841f731cc62b74726e5b9f136f/Data/5904be38bc1d7345a17c70023d1017bd/UIStackLayout_c.js",
+          "size_bytes": 4893,
+          "compressed_bytes": 1265
+        },
+        {
+          "name": "UIButtonPanel.js",
+          "path": "852fc153-1283-3d53-3a4c-c38e8d2492b8/640f7ff39a96b087177310f718ae13ae/Data/1630812a06ca4d3206bdfcb71f0a1026/UIButtonPanel.js",
+          "size_bytes": 6292,
+          "compressed_bytes": 1875
+        },
+        {
+          "name": "UIButtonPanel_c.js",
+          "path": "852fc153-1283-3d53-3a4c-c38e8d2492b8/640f7ff39a96b087177310f718ae13ae/Data/76d6b40be534085ff3097b3a24b60324/UIButtonPanel_c.js",
+          "size_bytes": 1286,
+          "compressed_bytes": 558
+        },
+        {
+          "name": "Face Events.js",
+          "path": "9b932228-0d5a-30f5-22a3-2ed1859e59b6/ea9d212f9bff3d3aad76c00033446851/Data/Face Events.js",
+          "size_bytes": 5236,
+          "compressed_bytes": 1681
+        },
+        {
+          "name": "RealtimeLNS.js",
+          "path": "7795d422-dd16-d7eb-6da5-3d1c2914dead/e99df4c0e94089456dee3635691bbc76/Data/ecb42d56e111d5d373936aef236337b9/RealtimeLNS.js",
+          "size_bytes": 15739,
+          "compressed_bytes": 4240
+        },
+        {
+          "name": "RealtimeLNS_c.js",
+          "path": "7795d422-dd16-d7eb-6da5-3d1c2914dead/e99df4c0e94089456dee3635691bbc76/Data/27de4a2440244967b090eadb4cb1f22e/RealtimeLNS_c.js",
+          "size_bytes": 6777,
+          "compressed_bytes": 2032
+        },
+        {
+          "name": "Manipulate.js",
+          "path": "2124757e-e55d-0269-1dca-e737f7453438/d8de7a3e3ef8b27f45c4b1df8dda5550/Data/12006a7854a50896a544d961c292595d/Manipulate.js",
+          "size_bytes": 10489,
+          "compressed_bytes": 2412
+        },
+        {
+          "name": "EnableTapToEditUriHandler.js",
+          "path": "ea40c259-a54c-b0f6-ffdf-616ed6c65a10/96bb9221093287a15fb4c699ca7db2ae/Data/3bc2089d69eabb6c0f597f9fd60969fd/EnableTapToEditUriHandler.js",
+          "size_bytes": 971,
+          "compressed_bytes": 426
+        },
+        {
+          "name": "2DGizmoConstants.js",
+          "path": "ac7f66b6-498e-bc5a-79f2-ab08892f804e/937a6f9d93e93ffd96d0a8973af3a92e/Data/247373a0b5e084af96beb9d7b6aa8f04/2DGizmoConstants.js",
+          "size_bytes": 602,
+          "compressed_bytes": 294
+        },
+        {
+          "name": "logger.js",
+          "path": "8547aac2-d01b-6d5b-cac9-d67f2e6ca68e/d38361b295c70368c00dcb661f399f2f/Data/4aa852b74ce66713619a58b3ac289d21/logger.js",
+          "size_bytes": 1429,
+          "compressed_bytes": 654
+        },
+        {
+          "name": "AngleUtils.js",
+          "path": "1c231fa7-c784-9d93-61cb-d7ece396e5a7/f0af767b466873a00c3aab72837faab6/Data/d95f2d16fc3846c8f9a9b0de9dade404/AngleUtils.js",
+          "size_bytes": 877,
+          "compressed_bytes": 405
+        },
+        {
+          "name": "ColorPickerHelpers.js",
+          "path": "56025e7b-34ac-10af-cb74-848dc5c962da/592f3d8b41d2f7cbe3b4f194875ae848/Data/be98e2030bd19c87110a85040d526f19/ColorPickerHelpers.js",
+          "size_bytes": 8179,
+          "compressed_bytes": 1988
+        }
+      ]
+    }
+  }
+]
