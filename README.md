@@ -1,8 +1,42 @@
 # SnapAR Studio • Web Lens Tester & Inspector
 
+[![Deploy on Railway](https://railway.com/button.svg)](https://railway.com/template/new)
+[![Live Demo](https://img.shields.io/badge/Live%20Demo-Online-00e676?style=flat&logo=snapchat)](https://snap-lens-studio-production.up.railway.app)
+[![Camera Kit](https://img.shields.io/badge/Camera%20Kit-v1.22.0%20WebGL2-fffc00?style=flat)](https://camera-kit.snap.com/)
+
 A standalone, production-grade Snapchat Web AR Lens Testing Suite built with **Snapchat Camera Kit WebGL2 (`@snap/camera-kit@1.22.0`)**.
 
 Upload any Snapchat `.lns` (or `.zip`) lens bundle, inspect its 3D assets, textures, and shaders, and test it live on your webcam or model video feed just like the Snapchat app!
+
+---
+
+## 🌐 Instant Cloud Access (Zero Install)
+
+- **Production Web App (Permanent 24/7)**:
+  👉 [https://snap-lens-studio-production.up.railway.app](https://snap-lens-studio-production.up.railway.app)
+- **Direct Package Download (1-Click Run)**:
+  👉 [Download `snap-lens-studio-standalone.zip`](https://snap-lens-studio-production.up.railway.app/api/download_package)
+
+*(HTTPS required by mobile Safari & Chrome for camera / microphone permissions).*
+
+---
+
+## 🚀 1-Click Local Execution (Download & Double-Click)
+
+### 🪟 Windows Users:
+1. Download or clone this repository / extract zip.
+2. Double-click `start.bat`.
+   - Automatically installs requirements if missing.
+   - Automatically opens your default web browser on `http://localhost:8888`.
+   - Starts testing immediately!
+
+### 🍎 Mac & 🐧 Linux Users:
+1. Download or clone this repository / extract zip.
+2. Open terminal in folder and run:
+   ```bash
+   chmod +x start.sh && ./start.sh
+   ```
+   - Automatically checks dependencies and launches browser.
 
 ---
 
@@ -43,25 +77,14 @@ Upload any Snapchat `.lns` (or `.zip`) lens bundle, inspect its 3D assets, textu
 
 ---
 
-## Quick Start
-
-### 1. Launch Server
-```bash
-cd /root/snap-lens-tester
-./run.sh 8888
-# or: python3 app.py --port 8888
-```
-
-### 2. Open in Browser
-Open `http://localhost:8888` in your browser.
-
----
-
 ## Directory Structure
 ```
-/root/snap-lens-tester/
+snap-lens-studio/
+├── start.bat                   # 🪟 Windows 1-click double-click launcher
+├── start.sh                    # 🍎 Mac / 🐧 Linux 1-click launcher
 ├── app.py                      # Flask REST API backend & bundle inspector
-├── run.sh                       # Start script (defaults to port 8888)
+├── Procfile                    # Cloud deploy manifest (Railway / Heroku)
+├── requirements.txt            # Python dependencies (Flask, gunicorn)
 ├── static/
 │   ├── js/
 │   │   ├── camera-kit.bundle.js # Official Camera Kit 1.22.0 bundle

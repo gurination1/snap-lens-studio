@@ -1,0 +1,8 @@
+__pycache__/
+*.pyc
+uploads/*
+!uploads/.gitkeep
+snaps/*
+!snaps/.gitkeep
+*.zip
+.pytest_cache/

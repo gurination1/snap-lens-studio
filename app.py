@@ -13,6 +13,7 @@ import time
 import shutil
 import hashlib
 import zipfile
+import io
 import argparse
 from datetime import datetime
 from flask import Flask, request, jsonify, render_template, send_from_directory, send_file
@@ -420,6 +421,31 @@ def serve_upload(filename):
 @app.route("/snaps/<path:filename>")
 def serve_snap(filename):
     return send_from_directory(SNAPS_DIR, filename, as_attachment=False)
+
+
+@app.route("/api/download_package")
+def download_package():
+    """Build and stream a portable 1-click standalone package (.zip)."""
+    zip_buffer = io.BytesIO()
+    with zipfile.ZipFile(zip_buffer, "w", zipfile.ZIP_DEFLATED) as z:
+        for root, dirs, files in os.walk(BASE_DIR):
+            # Exclude git, uploads, snaps, cache, pycache
+            if any(part in root for part in [".git", "__pycache__", "uploads", "snaps", ".pytest_cache"]):
+                continue
+            for file in files:
+                if file.endswith((".pyc", ".log", ".DS_Store")):
+                    continue
+                file_path = os.path.join(root, file)
+                rel_path = os.path.relpath(file_path, BASE_DIR)
+                z.write(file_path, os.path.join("snap-lens-studio", rel_path))
+
+    zip_buffer.seek(0)
+    return send_file(
+        zip_buffer,
+        mimetype="application/zip",
+        as_attachment=True,
+        download_name="snap-lens-studio-standalone.zip"
+    )
 
 
 def main():
