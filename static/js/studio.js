@@ -26,6 +26,16 @@ let localFaceSimTime = 0;
 let crownParticles = [];
 let kitsuneWisps = [];
 
+// 3D WebGL Engine State (Three.js Runtime for Snapchat .mesh)
+let threeRenderer = null;
+let threeScene = null;
+let threeCamera = null;
+let threeCanvas = null;
+let abyssalCrownGroup = null;
+let abyssalCrownMaterial = null;
+let is3DModelLoaded = false;
+let isLoading3DModel = false;
+
 // Protobuf Encoder for Sideloading .lns Bundles
 function encodeVarint(val) {
   const bytes = [];
@@ -865,6 +875,144 @@ window.toggleMeshWireframe = function() {
   if (btn) btn.classList.toggle('active', snapTracker.showWireframe);
 };
 
+// ==========================================
+// SNAPCHAT 3D WEBGL RUNTIME (Three.js Engine)
+// ==========================================
+function initSnapchat3DRuntime() {
+  if (threeRenderer) return;
+
+  threeCanvas = document.getElementById('ck-three-canvas');
+  if (!threeCanvas) {
+    console.warn('[SnapAR 3D] #ck-three-canvas element not found');
+    return;
+  }
+
+  if (typeof window.THREE === 'undefined') {
+    setTimeout(initSnapchat3DRuntime, 250);
+    return;
+  }
+
+  try {
+    threeRenderer = new THREE.WebGLRenderer({
+      canvas: threeCanvas,
+      alpha: true,
+      antialias: true,
+      premultipliedAlpha: false
+    });
+    threeRenderer.setSize(720, 1280, false);
+    threeRenderer.setPixelRatio(1);
+    threeRenderer.setClearColor(0x000000, 0);
+
+    threeScene = new THREE.Scene();
+
+    // 9:16 Portrait Camera FOV (Maps 1 Three.js unit = 1 pixel at Z=0)
+    const fov = 45;
+    const aspect = 720 / 1280;
+    threeCamera = new THREE.PerspectiveCamera(fov, aspect, 1, 4000);
+    const camZ = (1280 / 2) / Math.tan((fov * Math.PI / 180) / 2);
+    threeCamera.position.set(0, 0, camZ);
+    threeCamera.lookAt(0, 0, 0);
+    threeScene.add(threeCamera);
+
+    // Dynamic Cinematic Studio Lighting
+    const ambientLight = new THREE.AmbientLight(0xffffff, 0.95);
+    threeScene.add(ambientLight);
+
+    const keyLight = new THREE.DirectionalLight(0xfffaed, 1.5);
+    keyLight.position.set(200, 450, 500);
+    threeScene.add(keyLight);
+
+    const rimLight = new THREE.DirectionalLight(0x00d2ff, 1.4);
+    rimLight.position.set(-250, -200, 300);
+    threeScene.add(rimLight);
+
+    const fillLight = new THREE.DirectionalLight(0x99bbff, 0.8);
+    fillLight.position.set(0, -300, 400);
+    threeScene.add(fillLight);
+
+    // Root Group for Crown Attachment
+    abyssalCrownGroup = new THREE.Group();
+    threeScene.add(abyssalCrownGroup);
+
+    console.log('[SnapAR 3D] WebGL Engine initialized successfully');
+
+    // Trigger async OBJ model fetch
+    loadAbyssalCrown3DModel();
+  } catch (err) {
+    console.error('[SnapAR 3D] Failed to initialize Three.js runtime:', err);
+  }
+}
+
+// Load Snapchat Abyssal Crown 3D Model & PBR Texture
+function loadAbyssalCrown3DModel() {
+  if (is3DModelLoaded || isLoading3DModel) return;
+  if (!threeScene || typeof THREE.OBJLoader === 'undefined') {
+    setTimeout(loadAbyssalCrown3DModel, 300);
+    return;
+  }
+
+  isLoading3DModel = true;
+
+  try {
+    const textureLoader = new THREE.TextureLoader();
+    const crownTex = textureLoader.load(
+      '/static/samples/abyssal_crown_tex.png',
+      () => {
+        console.log('[SnapAR 3D] Crown texture loaded successfully');
+      },
+      undefined,
+      (err) => {
+        console.warn('[SnapAR 3D] Texture load error, using base material:', err);
+      }
+    );
+
+    abyssalCrownMaterial = new THREE.MeshStandardMaterial({
+      map: crownTex,
+      roughness: 0.28,
+      metalness: 0.82,
+      color: 0xffffff,
+      emissive: new THREE.Color(0x002244),
+      emissiveIntensity: 0.35,
+      transparent: true,
+      side: THREE.DoubleSide
+    });
+
+    const objLoader = new THREE.OBJLoader();
+    objLoader.load(
+      '/static/samples/abyssal_crown.obj',
+      (obj) => {
+        obj.traverse((child) => {
+          if (child.isMesh) {
+            child.material = abyssalCrownMaterial;
+            child.geometry.computeVertexNormals();
+          }
+        });
+
+        // Center base band on group anchor
+        obj.position.set(0, 0.38, 0);
+
+        abyssalCrownGroup.add(obj);
+        is3DModelLoaded = true;
+        isLoading3DModel = false;
+        console.log('[SnapAR 3D] Abyssal Crown 3D mesh loaded & mounted (26,997 vertices)');
+      },
+      (xhr) => {
+        if (xhr.lengthComputable) {
+          const percent = Math.round((xhr.loaded / xhr.total) * 100);
+          console.log(`[SnapAR 3D] Crown loading: ${percent}%`);
+        }
+      },
+      (err) => {
+        console.error('[SnapAR 3D] OBJ load error:', err);
+        isLoading3DModel = false;
+      }
+    );
+  } catch (err) {
+    console.error('[SnapAR 3D] Failed to load 3D crown assets:', err);
+    isLoading3DModel = false;
+  }
+}
+
 // Particles Initialization
 function resetLocalArParticles() {
   crownParticles = [];
@@ -907,6 +1055,9 @@ function startLocalArEngine() {
   const rawCtx = rawCanvas ? rawCanvas.getContext('2d') : null;
 
   resetLocalArParticles();
+
+  // Initialize Snapchat 3D WebGL Engine
+  initSnapchat3DRuntime();
 
   // Initialize Snapchat Tracker
   snapTracker = new SnapchatFaceEngine();
@@ -994,13 +1145,15 @@ function renderActiveArLens(ctx, tracker, t) {
 
   // LENS 1: Celestial Kitsune
   if (ckCurrentLensId === "4df2b87d-52eb-4ec3-bc0f-fd1919712256") {
+    if (abyssalCrownGroup) abyssalCrownGroup.visible = false;
     renderCelestialKitsune(ctx, pv, t);
   }
   // LENS 2: Verdant Gilded Tiara
   else if (ckCurrentLensId === "verdant_gilded") {
+    if (abyssalCrownGroup) abyssalCrownGroup.visible = false;
     renderVerdantTiara(ctx, pv, t);
   }
-  // LENS 3 & Default: Abyssal Crown
+  // LENS 3 & Default: Abyssal Crown (True 3D WebGL Mesh)
   else {
     renderAbyssalCrown(ctx, pv, t);
   }
@@ -1227,128 +1380,196 @@ function renderCelestialKitsune(ctx, pv, t) {
   ctx.restore();
 }
 
-// 2. ABYSSAL CROWN (100% Landmark-Locked with Lightning Surge)
+// 2. ABYSSAL CROWN (True 3D Snapchat Mesh WebGL + Dynamic Lightning Surge)
 function renderAbyssalCrown(ctx, pv, t) {
   const fx = pv.foreheadPosition2D.x;
   const fy = pv.foreheadPosition2D.y;
   const scale = pv.scaleFactor;
   const roll = pv.headAngleRad;
   const yaw = pv.headYaw;
+  const pitch = pv.headPitch;
   const isMouthOpen = pv.isMouthOpen;
 
-  ctx.save();
-  ctx.translate(fx, fy - 25 * scale);
-  ctx.rotate(roll);
+  if (is3DModelLoaded && threeRenderer && abyssalCrownGroup) {
+    // 3D Three.js WebGL Rendering Pipeline
+    abyssalCrownGroup.visible = true;
 
-  const crownW = 240 * scale;
-  const crownBaseY = 0;
+    // 1:1 Pixel Coordinates in Three.js Perspective Plane
+    const threeX = fx - 360;
+    const threeY = 640 - (fy - 25 * scale);
+    const threeZ = (scale - 1.0) * 120;
+    abyssalCrownGroup.position.set(threeX, threeY, threeZ);
 
-  // Rising Embers
-  crownParticles.forEach(p => {
-    p.y += p.vy * scale;
-    p.x += (p.vx + Math.sin(t * 2 + p.life) * 0.5) * scale;
-    if (p.y < crownBaseY - 140 * scale) {
-      p.y = crownBaseY + Math.random() * 20 * scale;
-      p.x = (Math.random() - 0.5) * crownW;
-    }
+    // Scale normalization (0.702 span -> ~330px width across head)
+    const targetPxWidth = 330 * scale;
+    const s = targetPxWidth / 0.702;
+    abyssalCrownGroup.scale.set(s, s, s);
 
-    ctx.fillStyle = isMouthOpen ? '#00f2fe' : `hsla(${p.hue}, 100%, 70%, 0.85)`;
-    ctx.shadowColor = '#00f2fe';
-    ctx.shadowBlur = 14;
-    ctx.beginPath();
-    ctx.arc(p.x, p.y, p.size * scale, 0, Math.PI * 2);
-    ctx.fill();
-  });
+    // Snapchat Kinematic Rotations (Roll, Yaw, Pitch)
+    abyssalCrownGroup.rotation.order = 'ZYX';
+    abyssalCrownGroup.rotation.z = -roll;
+    abyssalCrownGroup.rotation.y = yaw * 0.75;
+    abyssalCrownGroup.rotation.x = -pitch * 0.65;
 
-  // Base Filigree
-  const baseGrad = ctx.createLinearGradient(-crownW / 2, crownBaseY, crownW / 2, crownBaseY);
-  baseGrad.addColorStop(0, '#101728');
-  baseGrad.addColorStop(0.5, '#d4af37');
-  baseGrad.addColorStop(1, '#101728');
+    // Wireframe toggle & Emissive PBR glow
+    if (abyssalCrownMaterial) {
+      const showWire = snapTracker && snapTracker.showWireframe;
+      abyssalCrownMaterial.wireframe = !!showWire;
 
-  ctx.strokeStyle = baseGrad;
-  ctx.lineWidth = 6 * scale;
-  ctx.shadowColor = '#00f2fe';
-  ctx.shadowBlur = isMouthOpen ? 28 : 16;
-  ctx.beginPath();
-  ctx.ellipse(0, crownBaseY, crownW * 0.5, 22 * scale, 0, 0, Math.PI * 2);
-  ctx.stroke();
-
-  // Spikes & Abyssal Jewels
-  const spikeCount = 7;
-  const heights = [35, 65, 95, 130, 95, 65, 35];
-  const spikeTops = [];
-
-  for (let i = 0; i < spikeCount; i++) {
-    const angle = (i / (spikeCount - 1)) * Math.PI - Math.PI / 2;
-    // Parallax depth shift from yaw
-    const sx = (i - 3) * 36 * scale + (yaw * (4 - Math.abs(i - 3)) * 6 * scale);
-    const sy = crownBaseY + Math.sin(angle) * 10 * scale;
-    const sh = heights[i] * scale * (isMouthOpen ? 1.15 : 1.0);
-    spikeTops.push({ x: sx, y: sy - sh });
-
-    const spikeGrad = ctx.createLinearGradient(sx, sy, sx, sy - sh);
-    spikeGrad.addColorStop(0, '#162238');
-    spikeGrad.addColorStop(0.6, '#00f2fe');
-    spikeGrad.addColorStop(1, '#ffffff');
-
-    ctx.fillStyle = spikeGrad;
-    ctx.shadowColor = '#00f2fe';
-    ctx.shadowBlur = 20;
-
-    ctx.beginPath();
-    ctx.moveTo(sx - 12 * scale, sy);
-    ctx.lineTo(sx, sy - sh);
-    ctx.lineTo(sx + 12 * scale, sy);
-    ctx.closePath();
-    ctx.fill();
-
-    // Top Pulsing Jewel
-    const pulse = (1 + Math.sin(t * 3 + i) * 0.25) * scale;
-    ctx.fillStyle = '#ffffff';
-    ctx.shadowColor = '#00f2fe';
-    ctx.shadowBlur = 18;
-    ctx.beginPath();
-    ctx.arc(sx, sy - sh, 5 * pulse, 0, Math.PI * 2);
-    ctx.fill();
-  }
-
-  // Giant Center Sapphire Jewel
-  const centerPulse = (1 + Math.sin(t * 2.5) * 0.15) * scale * (isMouthOpen ? 1.4 : 1.0);
-  ctx.fillStyle = '#00f2fe';
-  ctx.shadowColor = '#00f2fe';
-  ctx.shadowBlur = isMouthOpen ? 45 : 30;
-  ctx.beginPath();
-  ctx.arc(0, crownBaseY - 12 * scale, 13 * centerPulse, 0, Math.PI * 2);
-  ctx.fill();
-
-  ctx.fillStyle = '#ffffff';
-  ctx.beginPath();
-  ctx.arc(-3 * scale, crownBaseY - 15 * scale, 4 * scale, 0, Math.PI * 2);
-  ctx.fill();
-
-  // Lightning Arcs between spikes when mouth is open
-  if (isMouthOpen) {
-    ctx.strokeStyle = '#ffffff';
-    ctx.shadowColor = '#00f2fe';
-    ctx.shadowBlur = 22;
-    ctx.lineWidth = 2.5 * scale;
-    for (let k = 0; k < spikeTops.length - 1; k++) {
-      if (Math.random() > 0.3) {
-        ctx.beginPath();
-        ctx.moveTo(spikeTops[k].x, spikeTops[k].y);
-        const midX = (spikeTops[k].x + spikeTops[k + 1].x) / 2 + (Math.random() - 0.5) * 20 * scale;
-        const midY = (spikeTops[k].y + spikeTops[k + 1].y) / 2 + (Math.random() - 0.5) * 20 * scale;
-        ctx.lineTo(midX, midY);
-        ctx.lineTo(spikeTops[k + 1].x, spikeTops[k + 1].y);
-        ctx.stroke();
+      if (isMouthOpen) {
+        abyssalCrownMaterial.emissive.setHex(0x00f2fe);
+        abyssalCrownMaterial.emissiveIntensity = 0.95 + Math.sin(t * 12) * 0.35;
+      } else if (showWire) {
+        abyssalCrownMaterial.emissive.setHex(0x00f2fe);
+        abyssalCrownMaterial.emissiveIntensity = 0.8;
+      } else {
+        abyssalCrownMaterial.emissive.setHex(0x002244);
+        abyssalCrownMaterial.emissiveIntensity = 0.3;
       }
     }
+
+    // Render 3D WebGL scene to offscreen canvas
+    threeRenderer.render(threeScene, threeCamera);
+
+    // Composite 3D layer directly on top of video feed
+    ctx.drawImage(threeCanvas, 0, 0, 720, 1280);
+
+    // Rising Cyan Embers
+    ctx.save();
+    ctx.translate(fx, fy - 25 * scale);
+    ctx.rotate(roll);
+    crownParticles.forEach(p => {
+      p.y += p.vy * scale;
+      p.x += (p.vx + Math.sin(t * 2 + p.life) * 0.5) * scale;
+      if (p.y < -140 * scale) {
+        p.y = Math.random() * 20 * scale;
+        p.x = (Math.random() - 0.5) * 240 * scale;
+      }
+
+      ctx.fillStyle = isMouthOpen ? '#00f2fe' : `hsla(${p.hue}, 100%, 70%, 0.85)`;
+      ctx.shadowColor = '#00f2fe';
+      ctx.shadowBlur = 14;
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, p.size * scale, 0, Math.PI * 2);
+      ctx.fill();
+    });
+    ctx.restore();
+
+  } else {
+    // 2D Procedural Crown Fallback
+    ctx.save();
+    ctx.translate(fx, fy - 25 * scale);
+    ctx.rotate(roll);
+
+    const crownW = 240 * scale;
+    const crownBaseY = 0;
+
+    // Rising Embers
+    crownParticles.forEach(p => {
+      p.y += p.vy * scale;
+      p.x += (p.vx + Math.sin(t * 2 + p.life) * 0.5) * scale;
+      if (p.y < crownBaseY - 140 * scale) {
+        p.y = crownBaseY + Math.random() * 20 * scale;
+        p.x = (Math.random() - 0.5) * crownW;
+      }
+
+      ctx.fillStyle = isMouthOpen ? '#00f2fe' : `hsla(${p.hue}, 100%, 70%, 0.85)`;
+      ctx.shadowColor = '#00f2fe';
+      ctx.shadowBlur = 14;
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, p.size * scale, 0, Math.PI * 2);
+      ctx.fill();
+    });
+
+    // Base Filigree
+    const baseGrad = ctx.createLinearGradient(-crownW / 2, crownBaseY, crownW / 2, crownBaseY);
+    baseGrad.addColorStop(0, '#101728');
+    baseGrad.addColorStop(0.5, '#d4af37');
+    baseGrad.addColorStop(1, '#101728');
+
+    ctx.strokeStyle = baseGrad;
+    ctx.lineWidth = 6 * scale;
+    ctx.shadowColor = '#00f2fe';
+    ctx.shadowBlur = isMouthOpen ? 28 : 16;
+    ctx.beginPath();
+    ctx.ellipse(0, crownBaseY, crownW * 0.5, 22 * scale, 0, 0, Math.PI * 2);
+    ctx.stroke();
+
+    // Spikes & Abyssal Jewels
+    const spikeCount = 7;
+    const heights = [35, 65, 95, 130, 95, 65, 35];
+    const spikeTops = [];
+
+    for (let i = 0; i < spikeCount; i++) {
+      const angle = (i / (spikeCount - 1)) * Math.PI - Math.PI / 2;
+      const sx = (i - 3) * 36 * scale + (yaw * (4 - Math.abs(i - 3)) * 6 * scale);
+      const sy = crownBaseY + Math.sin(angle) * 10 * scale;
+      const sh = heights[i] * scale * (isMouthOpen ? 1.15 : 1.0);
+      spikeTops.push({ x: sx, y: sy - sh });
+
+      const spikeGrad = ctx.createLinearGradient(sx, sy, sx, sy - sh);
+      spikeGrad.addColorStop(0, '#162238');
+      spikeGrad.addColorStop(0.6, '#00f2fe');
+      spikeGrad.addColorStop(1, '#ffffff');
+
+      ctx.fillStyle = spikeGrad;
+      ctx.shadowColor = '#00f2fe';
+      ctx.shadowBlur = 20;
+
+      ctx.beginPath();
+      ctx.moveTo(sx - 12 * scale, sy);
+      ctx.lineTo(sx, sy - sh);
+      ctx.lineTo(sx + 12 * scale, sy);
+      ctx.closePath();
+      ctx.fill();
+
+      // Top Pulsing Jewel
+      const pulse = (1 + Math.sin(t * 3 + i) * 0.25) * scale;
+      ctx.fillStyle = '#ffffff';
+      ctx.shadowColor = '#00f2fe';
+      ctx.shadowBlur = 18;
+      ctx.beginPath();
+      ctx.arc(sx, sy - sh, 5 * pulse, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    // Giant Center Sapphire Jewel
+    const centerPulse = (1 + Math.sin(t * 2.5) * 0.15) * scale * (isMouthOpen ? 1.4 : 1.0);
+    ctx.fillStyle = '#00f2fe';
+    ctx.shadowColor = '#00f2fe';
+    ctx.shadowBlur = isMouthOpen ? 45 : 30;
+    ctx.beginPath();
+    ctx.arc(0, crownBaseY - 12 * scale, 13 * centerPulse, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.fillStyle = '#ffffff';
+    ctx.beginPath();
+    ctx.arc(-3 * scale, crownBaseY - 15 * scale, 4 * scale, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Lightning Arcs between spikes when mouth is open
+    if (isMouthOpen) {
+      ctx.strokeStyle = '#ffffff';
+      ctx.shadowColor = '#00f2fe';
+      ctx.shadowBlur = 22;
+      ctx.lineWidth = 2.5 * scale;
+      for (let k = 0; k < spikeTops.length - 1; k++) {
+        if (Math.random() > 0.3) {
+          ctx.beginPath();
+          ctx.moveTo(spikeTops[k].x, spikeTops[k].y);
+          const midX = (spikeTops[k].x + spikeTops[k + 1].x) / 2 + (Math.random() - 0.5) * 20 * scale;
+          const midY = (spikeTops[k].y + spikeTops[k + 1].y) / 2 + (Math.random() - 0.5) * 20 * scale;
+          ctx.lineTo(midX, midY);
+          ctx.lineTo(spikeTops[k + 1].x, spikeTops[k + 1].y);
+          ctx.stroke();
+        }
+      }
+    }
+
+    ctx.restore();
   }
 
-  ctx.restore();
-
-  // MOUTH ABYSSAL SURGE PARTICLES
+  // MOUTH ABYSSAL SURGE PARTICLES (Active for both 3D & 2D on mouth trigger)
   if (isMouthOpen) {
     const mx = pv.mouthPosition2D.x;
     const my = pv.mouthPosition2D.y;

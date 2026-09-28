@@ -88,6 +88,7 @@
           <video id="ck-video-input" playsinline muted loop crossOrigin="anonymous" style="display:none;"></video>
           <video id="ck-webcam-raw" playsinline muted autoplay style="display:none;"></video>
           <canvas id="ck-crop-canvas" width="720" height="1280" style="display:none;"></canvas>
+          <canvas id="ck-three-canvas" width="720" height="1280" style="display:none;"></canvas>
 
           <!-- Interactive Split Comparison View -->
           <div id="split-overlay-container" class="split-view-container" style="display:none;">
@@ -449,6 +450,9 @@
 
   <!-- JSZip for 100% Client-Side Offline Lens Unpacking -->
   <script src="/static/js/jszip.min.js"></script>
+  <!-- Three.js & 3D WebGL Runtime -->
+  <script src="/static/vendor/three/three.min.js"></script>
+  <script src="/static/vendor/three/OBJLoader.js"></script>
   <!-- Google MediaPipe FaceMesh (Local Assets for 468 3D Landmark Tracking) -->
   <script src="/static/vendor/mediapipe/face_mesh.js"></script>
   <!-- Main Studio JavaScript -->
