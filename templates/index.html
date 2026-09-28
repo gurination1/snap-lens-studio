@@ -2,391 +2,423 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>SnapAR Studio • Web Lens Tester & Live Inspector</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <title>SnapAR Studio • Mobile Web Lens Tester & Live AR</title>
   <link rel="stylesheet" href="/static/css/studio.css">
   <link rel="manifest" href="/static/manifest.json">
-  <meta name="theme-color" content="#fffc00">
+  <meta name="theme-color" content="#06080d">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="SnapAR Studio">
 </head>
-<body>
+<body class="snapchat-mode">
 
-  <!-- App Header -->
+  <!-- Desktop Header (Minimized & Clean) -->
   <header class="app-header">
     <div class="brand">
       <div class="ghost-badge">👻</div>
       <div class="brand-titles">
         <h1 class="brand-name">SnapAR Studio</h1>
-        <p class="brand-sub">Realtime Web Lens Tester &amp; Inspector • WebGL2 Engine</p>
+        <p class="brand-sub">Realtime Mobile Web Lens AR • Local 60-120 FPS</p>
       </div>
     </div>
     
     <div class="header-actions">
       <div class="telemetry-pill" id="sdk-version-pill">
         <span class="pulse-dot"></span>
-        <span id="engine-status-text">Camera Kit 1.22.0 Ready</span>
+        <span id="engine-status-text">Local WebGL2 AR Active</span>
       </div>
-      <button id="pwa-install-btn" class="btn btn-secondary" style="display:none;" onclick="triggerPwaInstall()" title="Install standalone app to home screen (runs offline)">
-        <span class="icon">📲</span> Install PWA
+      <button class="btn btn-secondary" id="btn-toggle-drawer" onclick="toggleStudioDrawer()" title="Open Lens Studio Drawer (Inspect & Upload)">
+        <span class="icon">📦</span> <span class="hide-mobile">Lens Studio &amp; Upload</span>
       </button>
-      <a class="btn btn-secondary" href="/download_apk" download="SnapARStudio.apk" title="Download native Android APK (Installable app, offline WebGL2)">
-        <span class="icon">🤖</span> Android APK
-      </a>
-      <a class="btn btn-secondary" href="/api/download_package" download="snap-lens-studio-standalone.zip" title="Download portable package to run locally in 1 click">
-        <span class="icon">📦</span> Download Package (1-Click Run)
-      </a>
-      <button class="btn btn-primary" id="btn-header-upload" onclick="triggerLensUpload()" title="Upload and test a Snapchat .lns bundle">
-        <span class="icon">⬆</span> Upload .lns Bundle
+      <button id="pwa-install-btn" class="btn btn-secondary hide-mobile" style="display:none;" onclick="triggerPwaInstall()" title="Install standalone app">
+        <span class="icon">📲</span> Install
       </button>
+      <a class="btn btn-secondary hide-mobile" href="/download_apk" download="SnapARStudio.apk" title="Download native Android APK">
+        <span class="icon">🤖</span> APK
+      </a>
     </div>
   </header>
 
-  <!-- Main Container -->
-  <main class="studio-layout">
+  <!-- Main Viewport Container -->
+  <main class="studio-viewport">
 
-    <!-- Left Column: Camera Viewport & Snapchat Simulator -->
-    <section class="camera-col">
+    <!-- Snapchat Camera Viewfinder Shell -->
+    <div class="camera-viewport-shell">
 
-      <!-- Viewport Device Frame -->
-      <div class="device-frame">
-        <div class="device-screen" id="viewport-screen">
+      <!-- Dynamic Screen Container -->
+      <div class="camera-screen" id="viewport-screen">
 
-          <!-- Dynamic Island / Speaker Notch -->
-          <div class="device-notch">
-            <div class="notch-camera"></div>
+        <!-- Top Camera Overlay HUD -->
+        <div class="camera-hud-top">
+          <!-- Active Lens Badge -->
+          <div class="hud-lens-tag" onclick="toggleStudioDrawer()" title="Tap to inspect lens details">
+            <img id="hud-lens-icon" class="hud-lens-thumb" src="/static/samples/abyssal_crown_icon.png" alt="Lens Icon">
+            <div class="hud-lens-text">
+              <span id="hud-lens-name" class="hud-lens-title">Abyssal Crown</span>
+              <span id="hud-lens-status" class="hud-lens-meta">Local AR 60 FPS</span>
+            </div>
+            <span class="hud-lens-chevron">▾</span>
           </div>
 
-          <!-- Top HUD: Active Lens Info & Stats -->
-          <div class="camera-hud-top">
-            <div class="hud-lens-tag">
-              <img id="hud-lens-icon" class="hud-lens-thumb" src="/static/samples/abyssal_crown_icon.png" alt="Lens Icon">
-              <div class="hud-lens-text">
-                <span id="hud-lens-name" class="hud-lens-title">Abyssal Crown</span>
-                <span id="hud-lens-status" class="hud-lens-meta">WebGL2 AR Active</span>
-              </div>
-            </div>
-
-            <div class="hud-pills">
-              <span id="fps-counter" class="hud-pill hud-pill-fps">60 FPS</span>
-              <span id="face-tracking-pill" class="hud-pill hud-pill-tracking">Face Locked</span>
-            </div>
-          </div>
-
-          <!-- Live WebGL2 Camera Kit Surface -->
-          <div class="canvas-wrapper" id="canvas-wrapper">
-            <canvas id="ck-canvas" width="720" height="1280"></canvas>
-
-            <!-- Video & Raw Elements for Camera Kit Ingestion -->
-            <video id="ck-video-input" playsinline muted loop crossOrigin="anonymous" style="display:none;"></video>
-            <video id="ck-webcam-raw" playsinline muted autoplay style="display:none;"></video>
-            <canvas id="ck-crop-canvas" width="720" height="1280" style="display:none;"></canvas>
-
-            <!-- Interactive Split Comparison View (Optional Toggle) -->
-            <div id="split-overlay-container" class="split-view-container" style="display:none;">
-              <canvas id="split-raw-canvas" width="720" height="1280" class="split-raw-canvas"></canvas>
-              <div id="split-slider-line" class="split-slider-line" style="left: 50%;">
-                <div class="split-handle">◄ ❙ ►</div>
-              </div>
-            </div>
-          </div>
-
-          <!-- Flash Effect for Photo Snap -->
-          <div id="camera-flash" class="camera-flash"></div>
-
-          <!-- Side Quick Toggles Inside Camera Screen -->
-          <div class="camera-quick-toggles">
-            <button class="icon-toggle-btn" id="btn-mirror" title="Mirror WebCam" onclick="toggleCamMirror()">
-              <span>🪞</span>
-              <small>Mirror</small>
+          <!-- Top Right Quick Controls -->
+          <div class="hud-top-right">
+            <!-- Header Like Button -->
+            <button class="hud-pill-btn like-pill-btn" id="hud-like-btn" onclick="handleLikeClick(event)" title="Like this lens">
+              <span class="like-heart-icon" id="hud-heart-icon">❤️</span>
+              <span class="like-count-badge" id="hud-like-count">348</span>
             </button>
-            <button class="icon-toggle-btn" id="btn-framing" title="Anti-Zoom Smart Fit" onclick="toggleCamFraming()">
-              <span id="icon-framing-mode">🎯</span>
-              <small id="label-framing-mode">Zero Zoom</small>
+
+            <!-- Switch Camera Flip -->
+            <button class="hud-circle-btn" id="btn-top-flip" onclick="toggleCamFlip()" title="Flip Camera">
+              <span>🔄</span>
             </button>
-            <button class="icon-toggle-btn" id="btn-split" title="Split Before/After Comparison" onclick="toggleSplitMode()">
-              <span>🌓</span>
-              <small>Split</small>
-            </button>
-            <button class="icon-toggle-btn" id="btn-restart" title="Restart Video Source" onclick="restartSource()">
-              <span>↺</span>
-              <small>Reset</small>
+
+            <!-- Open Drawer / Studio -->
+            <button class="hud-circle-btn" onclick="toggleStudioDrawer()" title="Open Lens Details & Uploads">
+              <span>⚙️</span>
             </button>
           </div>
+        </div>
 
-          <!-- Bottom Camera HUD: Snapchat Shutter Controls -->
-          <div class="camera-hud-bottom">
-            <!-- Shutter Container -->
-            <div class="shutter-wrapper">
-              <div class="shutter-ring" id="shutter-ring-container">
-                <!-- SVG circular progress bar for video recording -->
-                <svg class="record-progress-svg" viewBox="0 0 100 100">
-                  <circle class="record-progress-bg" cx="50" cy="50" r="44"></circle>
-                  <circle class="record-progress-bar" id="record-svg-bar" cx="50" cy="50" r="44"></circle>
-                </svg>
-                <!-- Main Snapchat Shutter Button -->
-                <button class="snap-shutter-btn" id="snap-shutter" title="Tap for Photo Snap • Hold for Video Snap" aria-label="Snapchat Shutter"></button>
-              </div>
-              <div class="shutter-hint" id="shutter-hint">Tap for Photo • Hold for Video</div>
+        <!-- Live Camera & AR WebGL Surface -->
+        <div class="canvas-wrapper" id="canvas-wrapper">
+          <canvas id="ck-canvas" width="720" height="1280"></canvas>
+
+          <!-- Interactive Touch Sparks & Hearts Canvas -->
+          <canvas id="touch-fx-canvas" class="touch-fx-canvas"></canvas>
+
+          <!-- Video & Raw Elements for Camera Ingestion -->
+          <video id="ck-video-input" playsinline muted loop crossOrigin="anonymous" style="display:none;"></video>
+          <video id="ck-webcam-raw" playsinline muted autoplay style="display:none;"></video>
+          <canvas id="ck-crop-canvas" width="720" height="1280" style="display:none;"></canvas>
+
+          <!-- Interactive Split Comparison View -->
+          <div id="split-overlay-container" class="split-view-container" style="display:none;">
+            <canvas id="split-raw-canvas" width="720" height="1280" class="split-raw-canvas"></canvas>
+            <div id="split-slider-line" class="split-slider-line" style="left: 50%;">
+              <div class="split-handle">◄ ❙ ►</div>
             </div>
           </div>
+        </div>
 
-          <!-- Lens Carousel (Snapchat Style horizontal picker) -->
+        <!-- Flying Floating Hearts Container -->
+        <div class="flying-hearts-container" id="flying-hearts-container"></div>
+
+        <!-- Flash Effect for Photo Snap -->
+        <div id="camera-flash" class="camera-flash"></div>
+
+        <!-- Floating Snapchat Right Action Rail -->
+        <div class="camera-quick-toggles">
+          <!-- Interactive Like Button (Floating) -->
+          <button class="icon-toggle-btn like-toggle-btn" id="btn-like" onclick="handleLikeClick(event)" title="Like this Lens">
+            <span class="heart-icon-anim" id="floating-heart-icon">❤️</span>
+            <small id="btn-like-count">348</small>
+          </button>
+
+          <!-- Flip Front/Back -->
+          <button class="icon-toggle-btn" id="btn-flip" title="Flip Camera" onclick="toggleCamFlip()">
+            <span>🔄</span>
+            <small>Flip</small>
+          </button>
+
+          <!-- Mirror WebCam -->
+          <button class="icon-toggle-btn active" id="btn-mirror" title="Mirror Front Camera" onclick="toggleCamMirror()">
+            <span>🪞</span>
+            <small>Mirror</small>
+          </button>
+
+          <!-- Beauty & Glow FX -->
+          <button class="icon-toggle-btn active" id="btn-beauty" title="Beauty & Glow FX" onclick="toggleBeautyGlow()">
+            <span>✨</span>
+            <small>Glow</small>
+          </button>
+
+          <!-- Source Switcher Quick Toggle -->
+          <button class="icon-toggle-btn" id="btn-source-cycle" title="Cycle Video/Camera Source" onclick="cycleSource()">
+            <span id="icon-source-type">📹</span>
+            <small id="label-source-type">Cam</small>
+          </button>
+
+          <!-- Split View Toggle -->
+          <button class="icon-toggle-btn" id="btn-split" title="Split Before/After Comparison" onclick="toggleSplitMode()">
+            <span>🌓</span>
+            <small>Split</small>
+          </button>
+        </div>
+
+        <!-- Bottom Snapchat Shutter & Lens Carousel Dock -->
+        <div class="camera-dock-bottom">
+
+          <!-- Lens Carousel (Snapchat Horizontal Swipe Strip) -->
           <div class="lens-carousel-container">
             <div class="lens-carousel" id="lens-carousel">
-              <!-- Dynamically populated -->
+              <!-- Dynamically populated by studio.js -->
             </div>
           </div>
 
-        </div>
-      </div>
-
-      <!-- Input Source Switcher Toolbar -->
-      <div class="input-source-card">
-        <div class="source-card-header">
-          <span class="source-card-label">CAMERA &amp; INPUT SOURCE</span>
-          <span id="source-res-badge" class="source-res-badge">720 × 1280 (9:16)</span>
-        </div>
-        <div class="source-btn-row">
-          <button class="source-btn active" id="src-webcam" onclick="setSource('webcam')">
-            <span class="src-icon">📹</span>
-            <span class="src-text">Live WebCam</span>
-          </button>
-          <button class="source-btn" id="src-model1" onclick="setSource('model1')">
-            <span class="src-icon">👤</span>
-            <span class="src-text">Model Video 1</span>
-          </button>
-          <button class="source-btn" id="src-model2" onclick="setSource('model2')">
-            <span class="src-icon">👱‍♀️</span>
-            <span class="src-text">Cyber Blonde</span>
-          </button>
-          <button class="source-btn" id="src-photo" onclick="setSource('photo')">
-            <span class="src-icon">🖼️</span>
-            <span class="src-text">Frame 0 Still</span>
-          </button>
-          <button class="source-btn" id="src-custom" onclick="openCustomMediaModal()">
-            <span class="src-icon">📁</span>
-            <span class="src-text">Upload Video</span>
-          </button>
-        </div>
-        <input type="file" id="custom-media-input" accept="video/mp4,video/webm,image/png,image/jpeg" style="display:none;" onchange="handleCustomMediaUpload(event)">
-      </div>
-
-    </section>
-
-    <!-- Right Column: Studio Tools, Inspector & Upload Dropzone -->
-    <section class="tools-col">
-
-      <!-- Navigation Tabs -->
-      <nav class="studio-tabs">
-        <button class="tab-btn active" id="tab-btn-upload" onclick="switchTab('upload')">
-          <span>📦</span> Lens Bundles
-        </button>
-        <button class="tab-btn" id="tab-btn-inspector" onclick="switchTab('inspector')">
-          <span>🔍</span> Deep Inspector
-        </button>
-        <button class="tab-btn" id="tab-btn-gallery" onclick="switchTab('gallery')">
-          <span>📸</span> Snaps (<span id="snaps-count-badge">0</span>)
-        </button>
-        <button class="tab-btn" id="tab-btn-diagnostics" onclick="switchTab('diagnostics')">
-          <span>⚙️</span> Engine
-        </button>
-      </nav>
-
-      <!-- TAB 1: Upload & Lens Bundles -->
-      <div class="tab-content active" id="tab-upload">
-
-        <!-- Drag & Drop Card -->
-        <div class="dropzone-card" id="lens-dropzone" onclick="triggerLensUpload()" style="cursor: pointer;">
-          <input type="file" id="lens-file-input" accept=".lns,.zip,application/zip,application/octet-stream,*/*" style="display:none;" onchange="handleLensFileInput(event)" onclick="event.stopPropagation()">
-          <div class="dropzone-icon">✨</div>
-          <h3 class="dropzone-title">Drop Snapchat .lns Bundle Here</h3>
-          <p class="dropzone-sub">Tap or click to browse files, or drag & drop any `.lns` or `.zip` bundle.</p>
-          <div class="dropzone-actions">
-            <button type="button" class="btn btn-primary" id="btn-browse-lens" onclick="event.stopPropagation(); triggerLensUpload();">
-              Browse Lens File
-            </button>
-            <span class="dropzone-note">Instant hot-load into live WebGL2 session</span>
+          <!-- Snapchat Center Shutter Button -->
+          <div class="shutter-wrapper">
+            <div class="shutter-ring" id="shutter-ring-container">
+              <!-- Circular Progress Bar for Video Snap -->
+              <svg class="record-progress-svg" viewBox="0 0 100 100">
+                <circle class="record-progress-bg" cx="50" cy="50" r="44"></circle>
+                <circle class="record-progress-bar" id="record-svg-bar" cx="50" cy="50" r="44"></circle>
+              </svg>
+              <!-- Authentic Snapchat Shutter -->
+              <button class="snap-shutter-btn" id="snap-shutter" title="Tap for Photo Snap • Hold for Video Snap" aria-label="Snapchat Shutter"></button>
+            </div>
+            <div class="shutter-hint" id="shutter-hint">Tap for Photo • Hold for Video</div>
           </div>
 
-          <!-- Upload Progress Bar -->
-          <div class="upload-progress-container" id="upload-progress-container" style="display:none;">
-            <div class="progress-bar-bg">
-              <div class="progress-bar-fill" id="upload-progress-bar" style="width: 0%;"></div>
-            </div>
-            <div class="progress-text" id="upload-progress-text">Uploading and extracting bundle...</div>
-          </div>
-        </div>
-
-        <!-- Native Android APK Download Banner -->
-        <div class="apk-download-banner">
-          <div class="apk-banner-info">
-            <span class="apk-banner-icon">🤖</span>
-            <div class="apk-banner-text">
-              <strong>Native Android App Available</strong>
-              <p>Install APK directly on phone for offline WebGL2 AR testing without browser bars.</p>
-            </div>
-          </div>
-          <a class="btn-apk-dl" href="/download_apk" download="SnapARStudio.apk">
-            <span>⬇ Download APK (152KB)</span>
-          </a>
-        </div>
-
-        <!-- Available Lenses List -->
-        <div class="panel-section">
-          <div class="section-header">
-            <h4 class="section-title">Available Lenses</h4>
-            <span class="section-badge" id="lenses-total-badge">2 Lenses</span>
-          </div>
-
-          <div class="lenses-list" id="lenses-list">
-            <!-- Rendered by JS -->
-          </div>
-        </div>
-
-      </div>
-
-      <!-- TAB 2: Deep Lens Inspector -->
-      <div class="tab-content" id="tab-inspector">
-
-        <div class="inspector-card">
-          <div class="inspector-header">
-            <img id="insp-icon" class="insp-avatar" src="/static/samples/abyssal_crown_icon.png" alt="Lens Icon">
-            <div class="insp-title-box">
-              <h3 id="insp-name" class="insp-title">Abyssal Crown</h3>
-              <p id="insp-id" class="insp-id">ID: 06ab0c08-158f-762e-8000-87bcd093434c</p>
-            </div>
-            <div class="insp-status-badge" id="insp-badge">Official Bundle</div>
-          </div>
-
-          <p id="insp-desc" class="insp-desc">Snapchat Official 3D AR Crown with dynamic jewel lighting and face-tracking.</p>
-
-          <!-- Core Metrics -->
-          <div class="metrics-grid">
-            <div class="metric-item">
-              <span class="metric-label">BUNDLE SIZE</span>
-              <span id="insp-size" class="metric-value">5.02 MB</span>
-            </div>
-            <div class="metric-item">
-              <span class="metric-label">TOTAL FILES</span>
-              <span id="insp-files" class="metric-value">257</span>
-            </div>
-            <div class="metric-item">
-              <span class="metric-label">3D MESHES</span>
-              <span id="insp-meshes-count" class="metric-value highlight-cyan">6</span>
-            </div>
-            <div class="metric-item">
-              <span class="metric-label">TEXTURES</span>
-              <span id="insp-textures-count" class="metric-value highlight-yellow">32</span>
-            </div>
-            <div class="metric-item">
-              <span class="metric-label">SHADERS</span>
-              <span id="insp-shaders-count" class="metric-value highlight-pink">42</span>
-            </div>
-            <div class="metric-item">
-              <span class="metric-label">SCRIPTS</span>
-              <span id="insp-scripts-count" class="metric-value highlight-green">173</span>
-            </div>
-          </div>
-
-          <!-- SHA256 Fingerprint -->
-          <div class="sha-box">
-            <span class="sha-label">SHA-256 HASH:</span>
-            <code id="insp-sha256" class="sha-value">6ed4b8bd471563a78b9e3ca97e6139e7ff0fc6d08b1051c0c5b205ce2a0061cc</code>
-          </div>
-
-          <!-- Asset Lists Sub-sections -->
-          <div class="inspector-subsections">
-            <div class="subsec-box">
-              <h5 class="subsec-title">📦 3D Meshes &amp; Models</h5>
-              <ul class="asset-pills-list" id="insp-meshes-list"></ul>
-            </div>
-
-            <div class="subsec-box">
-              <h5 class="subsec-title">🎨 Textures &amp; Materials</h5>
-              <ul class="asset-pills-list" id="insp-textures-list"></ul>
-            </div>
-
-            <div class="subsec-box">
-              <h5 class="subsec-title">✨ Capabilities &amp; Hints</h5>
-              <div class="capabilities-tags" id="insp-capabilities-list"></div>
-            </div>
+          <!-- Drawer Pull Indicator -->
+          <div class="drawer-pull-tab" id="drawer-pull-tab" onclick="toggleStudioDrawer()">
+            <div class="pull-handle-bar"></div>
+            <span class="pull-label">▲ Lens Details &amp; Bundles</span>
           </div>
 
         </div>
 
       </div>
-
-      <!-- TAB 3: Captured Snaps Gallery -->
-      <div class="tab-content" id="tab-gallery">
-        <div class="gallery-header">
-          <div>
-            <h4 class="section-title">Saved Snaps</h4>
-            <p class="section-sub">Photos and video snaps captured from live camera testing.</p>
-          </div>
-          <button class="btn btn-secondary" onclick="loadSnapsGallery()">Refresh</button>
-        </div>
-
-        <div class="snaps-grid" id="snaps-grid">
-          <!-- Populated by JS -->
-          <div class="empty-state">
-            <div class="empty-icon">📷</div>
-            <p>No snaps captured yet.</p>
-            <small>Tap the white shutter button on the left to take a photo, or hold it to record a video!</small>
-          </div>
-        </div>
-      </div>
-
-      <!-- TAB 4: AR Engine Diagnostics -->
-      <div class="tab-content" id="tab-diagnostics">
-        <div class="diagnostics-card">
-          <h4 class="section-title">Engine Diagnostics</h4>
-          <div class="diag-table">
-            <div class="diag-row">
-              <span class="diag-label">Camera Kit Web SDK</span>
-              <span class="diag-value">@snap/camera-kit@1.22.0</span>
-            </div>
-            <div class="diag-row">
-              <span class="diag-label">WebGL Engine</span>
-              <span class="diag-value" id="diag-webgl-ver">WebGL2 Context (Canvas 720×1280)</span>
-            </div>
-            <div class="diag-row">
-              <span class="diag-label">Sideload Extension</span>
-              <span class="diag-value highlight-green">Active (lensSourcesFactory Injectable)</span>
-            </div>
-            <div class="diag-row">
-              <span class="diag-label">Protobuf Serialization</span>
-              <span class="diag-value">WireType Varint 1:1 Parity</span>
-            </div>
-            <div class="diag-row">
-              <span class="diag-label">Active Video Track</span>
-              <span class="diag-value" id="diag-track-info">720x1280 @ 30fps</span>
-            </div>
-            <div class="diag-row">
-              <span class="diag-label">WebCam Anti-Zoom Mode</span>
-              <span class="diag-value" id="diag-framing-info">Smart Portrait Fit (0% Digital Zoom)</span>
-            </div>
-            <div class="diag-row">
-              <span class="diag-label">Face Mesh Pipeline</span>
-              <span class="diag-value" id="diag-face-pipeline">LENSCORE_FACETRACKING_FACE_MESH_V3</span>
-            </div>
-          </div>
-
-          <div class="diag-actions">
-            <button class="btn btn-secondary" onclick="rebootstrapEngine()">
-              <span>🔄</span> Re-bootstrap Camera Kit
-            </button>
-            <button class="btn btn-secondary" onclick="exportDiagnosticReport()">
-              <span>📋</span> Copy Diagnostic Log
-            </button>
-          </div>
-        </div>
-      </div>
-
-    </section>
+    </div>
 
   </main>
+
+  <!-- Slide-up Studio Drawer (Lens Details, Uploads, Inspector, Snaps Gallery) -->
+  <aside class="studio-drawer" id="studio-drawer">
+    <div class="drawer-backdrop" onclick="toggleStudioDrawer()"></div>
+    
+    <div class="drawer-sheet">
+      <!-- Drawer Header Bar -->
+      <div class="drawer-header">
+        <div class="drawer-drag-pill" onclick="toggleStudioDrawer()"></div>
+        <div class="drawer-header-row">
+          <div class="drawer-title-box">
+            <h3 class="drawer-title">Lens Studio &amp; Inspector</h3>
+            <p class="drawer-sub">Upload .lns bundles, review 3D assets &amp; inspect snaps</p>
+          </div>
+          <button class="drawer-close-btn" onclick="toggleStudioDrawer()" aria-label="Close Drawer">✕</button>
+        </div>
+
+        <!-- Navigation Tabs -->
+        <nav class="studio-tabs">
+          <button class="tab-btn active" id="tab-btn-upload" onclick="switchTab('upload')">
+            <span>📦</span> Lenses (<span id="lenses-total-badge">3</span>)
+          </button>
+          <button class="tab-btn" id="tab-btn-inspector" onclick="switchTab('inspector')">
+            <span>🔍</span> Inspector
+          </button>
+          <button class="tab-btn" id="tab-btn-gallery" onclick="switchTab('gallery')">
+            <span>📸</span> Snaps (<span id="snaps-count-badge">0</span>)
+          </button>
+          <button class="tab-btn" id="tab-btn-diagnostics" onclick="switchTab('diagnostics')">
+            <span>⚙️</span> Engine
+          </button>
+        </nav>
+      </div>
+
+      <!-- Drawer Scrollable Body -->
+      <div class="drawer-content">
+
+        <!-- TAB 1: Upload & Lens Bundles -->
+        <div class="tab-content active" id="tab-upload">
+
+          <!-- Dropzone Card -->
+          <div class="dropzone-card" id="lens-dropzone" onclick="triggerLensUpload()" style="cursor: pointer;">
+            <input type="file" id="lens-file-input" accept=".lns,.zip,application/zip,application/octet-stream,*/*" style="display:none;" onchange="handleLensFileInput(event)" onclick="event.stopPropagation()">
+            <div class="dropzone-icon">✨</div>
+            <h4 class="dropzone-title">Drop Snapchat .lns Bundle Here</h4>
+            <p class="dropzone-sub">Tap to browse or drop any `.lns` / `.zip` file for instant client-side AR loading.</p>
+            <div class="dropzone-actions">
+              <button type="button" class="btn btn-primary" id="btn-browse-lens" onclick="event.stopPropagation(); triggerLensUpload();">
+                Browse Lens File
+              </button>
+              <span class="dropzone-note">Instant 100% local GPU unpack</span>
+            </div>
+
+            <!-- Upload Progress Bar -->
+            <div class="upload-progress-container" id="upload-progress-container" style="display:none;">
+              <div class="progress-bar-bg">
+                <div class="progress-bar-fill" id="upload-progress-bar" style="width: 0%;"></div>
+              </div>
+              <div class="progress-text" id="upload-progress-text">Processing bundle locally...</div>
+            </div>
+          </div>
+
+          <!-- Input Source Switcher in Drawer -->
+          <div class="input-source-card">
+            <div class="source-card-header">
+              <span class="source-card-label">CAMERA &amp; INPUT SOURCE</span>
+              <span id="source-res-badge" class="source-res-badge">720 × 1280 (Smart Fit)</span>
+            </div>
+            <div class="source-btn-row">
+              <button class="source-btn active" id="src-webcam" onclick="setSource('webcam')">
+                <span class="src-icon">📹</span>
+                <span class="src-text">Live Cam</span>
+              </button>
+              <button class="source-btn" id="src-model1" onclick="setSource('model1')">
+                <span class="src-icon">👤</span>
+                <span class="src-text">Model 1</span>
+              </button>
+              <button class="source-btn" id="src-model2" onclick="setSource('model2')">
+                <span class="src-icon">👱‍♀️</span>
+                <span class="src-text">Model 2</span>
+              </button>
+              <button class="source-btn" id="src-photo" onclick="setSource('photo')">
+                <span class="src-icon">🖼️</span>
+                <span class="src-text">Still Frame</span>
+              </button>
+              <button class="source-btn" id="src-custom" onclick="openCustomMediaModal()">
+                <span class="src-icon">📁</span>
+                <span class="src-text">Upload Video</span>
+              </button>
+            </div>
+            <input type="file" id="custom-media-input" accept="video/mp4,video/webm,image/png,image/jpeg" style="display:none;" onchange="handleCustomMediaUpload(event)">
+          </div>
+
+          <!-- Available Lenses List -->
+          <div class="panel-section">
+            <div class="section-header">
+              <h4 class="section-title">Available Lenses</h4>
+            </div>
+            <div class="lenses-list" id="lenses-list">
+              <!-- Rendered by JS -->
+            </div>
+          </div>
+
+        </div>
+
+        <!-- TAB 2: Deep Lens Inspector -->
+        <div class="tab-content" id="tab-inspector">
+
+          <div class="inspector-card">
+            <div class="inspector-header">
+              <img id="insp-icon" class="insp-avatar" src="/static/samples/abyssal_crown_icon.png" alt="Lens Icon">
+              <div class="insp-title-box">
+                <h3 id="insp-name" class="insp-title">Abyssal Crown</h3>
+                <p id="insp-id" class="insp-id">ID: 06ab0c08-158f-762e-8000-87bcd093434c</p>
+              </div>
+              <div class="insp-status-badge" id="insp-badge">Official Bundle</div>
+            </div>
+
+            <p id="insp-desc" class="insp-desc">Snapchat Official 3D AR Crown with dynamic jewel lighting and face-tracking.</p>
+
+            <!-- Core Metrics -->
+            <div class="metrics-grid">
+              <div class="metric-item">
+                <span class="metric-label">BUNDLE SIZE</span>
+                <span id="insp-size" class="metric-value">5.02 MB</span>
+              </div>
+              <div class="metric-item">
+                <span class="metric-label">TOTAL FILES</span>
+                <span id="insp-files" class="metric-value">257</span>
+              </div>
+              <div class="metric-item">
+                <span class="metric-label">3D MESHES</span>
+                <span id="insp-meshes-count" class="metric-value highlight-cyan">6</span>
+              </div>
+              <div class="metric-item">
+                <span class="metric-label">TEXTURES</span>
+                <span id="insp-textures-count" class="metric-value highlight-yellow">32</span>
+              </div>
+              <div class="metric-item">
+                <span class="metric-label">SHADERS</span>
+                <span id="insp-shaders-count" class="metric-value highlight-pink">42</span>
+              </div>
+              <div class="metric-item">
+                <span class="metric-label">SCRIPTS</span>
+                <span id="insp-scripts-count" class="metric-value highlight-green">173</span>
+              </div>
+            </div>
+
+            <!-- SHA256 Fingerprint -->
+            <div class="sha-box">
+              <span class="sha-label">SHA-256 HASH:</span>
+              <code id="insp-sha256" class="sha-value">6ed4b8bd471563a78b9e3ca97e6139e7ff0fc6d08b1051c0c5b205ce2a0061cc</code>
+            </div>
+
+            <!-- Asset Lists Sub-sections -->
+            <div class="inspector-subsections">
+              <div class="subsec-box">
+                <h5 class="subsec-title">📦 3D Meshes &amp; Models</h5>
+                <ul class="asset-pills-list" id="insp-meshes-list"></ul>
+              </div>
+
+              <div class="subsec-box">
+                <h5 class="subsec-title">🎨 Textures &amp; Materials</h5>
+                <ul class="asset-pills-list" id="insp-textures-list"></ul>
+              </div>
+
+              <div class="subsec-box">
+                <h5 class="subsec-title">✨ Capabilities &amp; Hints</h5>
+                <div class="capabilities-tags" id="insp-capabilities-list"></div>
+              </div>
+            </div>
+
+          </div>
+
+        </div>
+
+        <!-- TAB 3: Captured Snaps Gallery -->
+        <div class="tab-content" id="tab-gallery">
+          <div class="gallery-header">
+            <div>
+              <h4 class="section-title">Saved Snaps</h4>
+              <p class="section-sub">Photos and video snaps captured from live camera testing.</p>
+            </div>
+            <button class="btn btn-secondary" onclick="loadSnapsGallery()">Refresh</button>
+          </div>
+
+          <div class="snaps-grid" id="snaps-grid">
+            <div class="empty-state">
+              <div class="empty-icon">📷</div>
+              <p>No snaps captured yet.</p>
+              <small>Tap the white shutter button on camera to take a photo, or hold it to record a video!</small>
+            </div>
+          </div>
+        </div>
+
+        <!-- TAB 4: AR Engine Diagnostics -->
+        <div class="tab-content" id="tab-diagnostics">
+          <div class="diagnostics-card">
+            <h4 class="section-title">Engine Diagnostics</h4>
+            <div class="diag-table">
+              <div class="diag-row">
+                <span class="diag-label">Renderer Pipeline</span>
+                <span class="diag-value highlight-green">Dual Engine: Local WebGL2 + Camera Kit</span>
+              </div>
+              <div class="diag-row">
+                <span class="diag-label">Local FPS Target</span>
+                <span class="diag-value" id="diag-fps-info">60 - 120 FPS (Hardware Synced)</span>
+              </div>
+              <div class="diag-row">
+                <span class="diag-label">WebGL Context</span>
+                <span class="diag-value" id="diag-webgl-ver">WebGL2 Context (Canvas 720×1280)</span>
+              </div>
+              <div class="diag-row">
+                <span class="diag-label">Active Video Track</span>
+                <span class="diag-value" id="diag-track-info">720x1280 @ 30fps</span>
+              </div>
+              <div class="diag-row">
+                <span class="diag-label">Face Mesh Pipeline</span>
+                <span class="diag-value" id="diag-face-pipeline">Local AR Kinematics + Face Landmarks</span>
+              </div>
+            </div>
+
+            <div class="diag-actions">
+              <button class="btn btn-secondary" onclick="rebootstrapEngine()">
+                <span>🔄</span> Reset Engine
+              </button>
+              <button class="btn btn-secondary" onclick="exportDiagnosticReport()">
+                <span>📋</span> Copy Diagnostic Log
+              </button>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </aside>
 
   <!-- Photo / Video Preview Modal -->
   <div class="modal-backdrop" id="snap-preview-modal" style="display:none;" onclick="closeSnapModal(event)">

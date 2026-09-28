@@ -56,8 +56,49 @@ SAMPLE_LENSES = [
         "is_sample": True,
         "description": "High-poly emerald tiara with procedural sparkle shader and PBR materials.",
         "activation_camera": "front"
+    },
+    {
+        "id": "4df2b87d-52eb-4ec3-bc0f-fd1919712256",
+        "name": "Celestial Kitsune",
+        "filename": "abyssal_crown.lns",
+        "url": "/static/samples/abyssal_crown.lns",
+        "icon_url": "/static/samples/kitsune_icon.png",
+        "sha256": "4df2b87d52eb4ec3bc0ffd1919712256",
+        "is_sample": True,
+        "description": "Foxfire Kitsune Spirit Crest with celestial aura & dynamic glowing particles.",
+        "activation_camera": "front"
     }
 ]
+
+LIKES_FILE = os.path.join(UPLOADS_DIR, "likes.json")
+
+
+def load_likes():
+    default_likes = {
+        "06ab0c08-158f-762e-8000-87bcd093434c": 348,
+        "verdant_gilded": 285,
+        "4df2b87d-52eb-4ec3-bc0f-fd1919712256": 512
+    }
+    if not os.path.exists(LIKES_FILE):
+        return default_likes
+    try:
+        with open(LIKES_FILE, "r", encoding="utf-8") as f:
+            data = json.load(f)
+            for k, v in default_likes.items():
+                if k not in data:
+                    data[k] = v
+            return data
+    except Exception as e:
+        print(f"[Likes Warning] Error reading likes: {e}", file=sys.stderr)
+        return default_likes
+
+
+def save_likes(likes):
+    try:
+        with open(LIKES_FILE, "w", encoding="utf-8") as f:
+            json.dump(likes, f, indent=2)
+    except Exception as e:
+        print(f"[Likes Save Warning] Error saving likes: {e}", file=sys.stderr)
 
 
 def load_registry():
@@ -193,9 +234,11 @@ for sample in SAMPLE_LENSES:
 def add_cors_headers(response):
     response.headers["Access-Control-Allow-Origin"] = "*"
     response.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, DELETE, OPTIONS"
-    response.headers["Access-Control-Allow-Headers"] = "Content-Type, Authorization"
-    response.headers["Cross-Origin-Embedder-Policy"] = "require-corp"
+    response.headers["Access-Control-Allow-Headers"] = "Content-Type, Authorization, Range"
+    response.headers["Cross-Origin-Embedder-Policy"] = "credentialless"
     response.headers["Cross-Origin-Opener-Policy"] = "same-origin"
+    response.headers["Cross-Origin-Resource-Policy"] = "cross-origin"
+    response.headers["Accept-Ranges"] = "bytes"
     return response
 
 
@@ -216,13 +259,35 @@ def health():
 
 @app.route("/api/lenses", methods=["GET"])
 def get_lenses():
-    """Return all available lenses (built-in samples + user uploads)."""
+    """Return all available lenses (built-in samples + user uploads) with live like counts."""
+    likes = load_likes()
     user_lenses = load_registry()
-    all_lenses = SAMPLE_LENSES + user_lenses
+    all_lenses = []
+    for l in (SAMPLE_LENSES + user_lenses):
+        lens_obj = dict(l)
+        lens_obj["likes"] = likes.get(l["id"], 42 if not l.get("is_sample") else 150)
+        all_lenses.append(lens_obj)
+
     return jsonify({
         "success": True,
         "lenses": all_lenses,
         "total": len(all_lenses)
+    })
+
+
+@app.route("/api/like_lens/<lens_id>", methods=["GET", "POST"])
+def like_lens(lens_id):
+    """Get or increment like count for a lens."""
+    likes = load_likes()
+    current_count = likes.get(lens_id, 42)
+    if request.method == "POST":
+        current_count += 1
+        likes[lens_id] = current_count
+        save_likes(likes)
+    return jsonify({
+        "success": True,
+        "lens_id": lens_id,
+        "likes": current_count
     })
 
 
@@ -424,12 +489,12 @@ def get_snaps():
 
 @app.route("/uploads/<path:filename>")
 def serve_upload(filename):
-    return send_from_directory(UPLOADS_DIR, filename, as_attachment=False)
+    return send_from_directory(UPLOADS_DIR, filename, as_attachment=False, conditional=True)
 
 
 @app.route("/snaps/<path:filename>")
 def serve_snap(filename):
-    return send_from_directory(SNAPS_DIR, filename, as_attachment=False)
+    return send_from_directory(SNAPS_DIR, filename, as_attachment=False, conditional=True)
 
 
 @app.route("/download_apk")
