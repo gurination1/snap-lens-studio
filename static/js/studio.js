@@ -109,8 +109,8 @@ document.addEventListener('DOMContentLoaded', async () => {
   await fetchLenses();
   loadSnapsGallery();
 
-  // 3. Asynchronously load Snap Camera Kit in background (non-blocking)
-  initCameraKitAsync();
+  // 3. Local WebGL Engine active (Camera Kit disabled to prevent context loss)
+  // initCameraKitAsync();
 });
 
 // PWA Service Worker & Install Prompt
@@ -564,9 +564,10 @@ class SnapchatFaceEngine {
 
     const tryInit = (useCdnFallback = false) => {
       try {
+        const origin = window.location.origin;
         const baseUrl = useCdnFallback
           ? 'https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh@0.4.1633559619/'
-          : '/static/vendor/mediapipe/';
+          : `${origin}/static/vendor/mediapipe/`;
 
         this.faceMesh = new window.FaceMesh({
           locateFile: (file) => `${baseUrl}${file}`
@@ -915,11 +916,18 @@ function initSnapchat3DRuntime() {
   }
 
   try {
+    threeCanvas.addEventListener('webglcontextlost', (e) => {
+      e.preventDefault();
+      console.warn('[SnapAR 3D] WebGL context loss captured & handled.');
+    }, false);
+
     threeRenderer = new THREE.WebGLRenderer({
       canvas: threeCanvas,
       alpha: true,
-      antialias: true,
-      premultipliedAlpha: false
+      antialias: false,
+      powerPreference: 'high-performance',
+      preserveDrawingBuffer: false,
+      premultipliedAlpha: true
     });
     threeRenderer.setSize(720, 1280, false);
     threeRenderer.setPixelRatio(1);

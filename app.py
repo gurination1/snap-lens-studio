@@ -492,6 +492,14 @@ def serve_upload(filename):
     return send_from_directory(UPLOADS_DIR, filename, as_attachment=False, conditional=True)
 
 
+@app.route("/assets/<path:filename>")
+def serve_asset(filename):
+    assets_dir = "/root/snapchat-lens/assets"
+    if os.path.exists(os.path.join(assets_dir, filename)):
+        return send_from_directory(assets_dir, filename, as_attachment=False, conditional=True)
+    return send_from_directory(STATIC_DIR, filename, as_attachment=False, conditional=True)
+
+
 @app.route("/snaps/<path:filename>")
 def serve_snap(filename):
     return send_from_directory(SNAPS_DIR, filename, as_attachment=False, conditional=True)
