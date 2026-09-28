@@ -259,15 +259,9 @@ def health():
 
 @app.route("/api/lenses", methods=["GET"])
 def get_lenses():
-    """Return all available lenses (built-in samples + user uploads) with live like counts."""
-    likes = load_likes()
+    """Return all available lenses (built-in samples + user uploads)."""
     user_lenses = load_registry()
-    all_lenses = []
-    for l in (SAMPLE_LENSES + user_lenses):
-        lens_obj = dict(l)
-        lens_obj["likes"] = likes.get(l["id"], 42 if not l.get("is_sample") else 150)
-        all_lenses.append(lens_obj)
-
+    all_lenses = SAMPLE_LENSES + user_lenses
     return jsonify({
         "success": True,
         "lenses": all_lenses,

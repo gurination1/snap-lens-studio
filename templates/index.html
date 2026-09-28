@@ -63,19 +63,18 @@
 
           <!-- Top Right Quick Controls -->
           <div class="hud-top-right">
-            <!-- Header Like Button -->
-            <button class="hud-pill-btn like-pill-btn" id="hud-like-btn" onclick="handleLikeClick(event)" title="Like this lens">
-              <span class="like-heart-icon" id="hud-heart-icon">❤️</span>
-              <span class="like-count-badge" id="hud-like-count">348</span>
+            <!-- Source Cycle -->
+            <button class="hud-circle-btn" id="btn-top-source" onclick="cycleSource()" title="Cycle Camera / Video Source">
+              <span id="icon-source-type">📹</span>
             </button>
 
             <!-- Switch Camera Flip -->
-            <button class="hud-circle-btn" id="btn-top-flip" onclick="toggleCamFlip()" title="Flip Camera">
+            <button class="hud-circle-btn" id="btn-top-flip" onclick="toggleCamFlip()" title="Flip Camera (Front / Back)">
               <span>🔄</span>
             </button>
 
-            <!-- Open Drawer / Studio -->
-            <button class="hud-circle-btn" onclick="toggleStudioDrawer()" title="Open Lens Details & Uploads">
+            <!-- Open Studio Drawer -->
+            <button class="hud-circle-btn" onclick="toggleStudioDrawer()" title="Lens Studio &amp; Bundle Inspector">
               <span>⚙️</span>
             </button>
           </div>
@@ -84,9 +83,6 @@
         <!-- Live Camera & AR WebGL Surface -->
         <div class="canvas-wrapper" id="canvas-wrapper">
           <canvas id="ck-canvas" width="720" height="1280"></canvas>
-
-          <!-- Interactive Touch Sparks & Hearts Canvas -->
-          <canvas id="touch-fx-canvas" class="touch-fx-canvas"></canvas>
 
           <!-- Video & Raw Elements for Camera Ingestion -->
           <video id="ck-video-input" playsinline muted loop crossOrigin="anonymous" style="display:none;"></video>
@@ -102,20 +98,11 @@
           </div>
         </div>
 
-        <!-- Flying Floating Hearts Container -->
-        <div class="flying-hearts-container" id="flying-hearts-container"></div>
-
         <!-- Flash Effect for Photo Snap -->
         <div id="camera-flash" class="camera-flash"></div>
 
-        <!-- Floating Snapchat Right Action Rail -->
+        <!-- Floating Studio Quick Controls -->
         <div class="camera-quick-toggles">
-          <!-- Interactive Like Button (Floating) -->
-          <button class="icon-toggle-btn like-toggle-btn" id="btn-like" onclick="handleLikeClick(event)" title="Like this Lens">
-            <span class="heart-icon-anim" id="floating-heart-icon">❤️</span>
-            <small id="btn-like-count">348</small>
-          </button>
-
           <!-- Flip Front/Back -->
           <button class="icon-toggle-btn" id="btn-flip" title="Flip Camera" onclick="toggleCamFlip()">
             <span>🔄</span>
@@ -123,25 +110,19 @@
           </button>
 
           <!-- Mirror WebCam -->
-          <button class="icon-toggle-btn active" id="btn-mirror" title="Mirror Front Camera" onclick="toggleCamMirror()">
+          <button class="icon-toggle-btn active" id="btn-mirror" title="Mirror Camera" onclick="toggleCamMirror()">
             <span>🪞</span>
             <small>Mirror</small>
           </button>
 
-          <!-- Beauty & Glow FX -->
-          <button class="icon-toggle-btn active" id="btn-beauty" title="Beauty & Glow FX" onclick="toggleBeautyGlow()">
+          <!-- Beauty & Tone Enhancement -->
+          <button class="icon-toggle-btn active" id="btn-beauty" title="Tone Enhancement" onclick="toggleBeautyGlow()">
             <span>✨</span>
-            <small>Glow</small>
-          </button>
-
-          <!-- Source Switcher Quick Toggle -->
-          <button class="icon-toggle-btn" id="btn-source-cycle" title="Cycle Video/Camera Source" onclick="cycleSource()">
-            <span id="icon-source-type">📹</span>
-            <small id="label-source-type">Cam</small>
+            <small>Tone</small>
           </button>
 
           <!-- Split View Toggle -->
-          <button class="icon-toggle-btn" id="btn-split" title="Split Before/After Comparison" onclick="toggleSplitMode()">
+          <button class="icon-toggle-btn" id="btn-split" title="Split Compare" onclick="toggleSplitMode()">
             <span>🌓</span>
             <small>Split</small>
           </button>

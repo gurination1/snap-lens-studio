@@ -20,11 +20,6 @@ let customMediaType = null;
 const sideloadedLenses = new Map();
 let loadedLensesList = [];
 
-// Touch FX State
-const touchParticles = [];
-let touchCanvas = null;
-let touchCtx = null;
-
 // Local AR Engine State
 let localRenderLoopId = null;
 let localFaceSimTime = 0;
@@ -89,7 +84,6 @@ let currentFps = 60;
 
 // Initialize on DOM Ready
 document.addEventListener('DOMContentLoaded', async () => {
-  setupTouchFx();
   setupTabs();
   setupDropzone();
   setupShutter();
@@ -220,13 +214,15 @@ function renderLensesList() {
     const iconSrc = lens.icon_url || '/static/samples/abyssal_crown_icon.png';
     const sizeMb = lens.size_bytes ? (lens.size_bytes / (1024 * 1024)).toFixed(2) + ' MB' : 'Built-in';
     const tag = lens.is_sample ? 'Official' : 'Custom';
+    const meshCount = lens.inspection?.counts?.meshes || 0;
+    const texCount = lens.inspection?.counts?.textures || 0;
 
     item.innerHTML = `
       <div class="lens-card-info">
         <img class="lens-card-icon" src="${iconSrc}" alt="${lens.name}">
         <div class="lens-card-details">
           <span class="lens-card-name">${lens.name}</span>
-          <span class="lens-card-meta">${sizeMb} • ❤️ ${lens.likes || 42} Likes</span>
+          <span class="lens-card-meta">${sizeMb} • ${meshCount} Meshes • ${texCount} Textures</span>
         </div>
       </div>
       <div class="lens-card-actions">
@@ -298,86 +294,10 @@ function updateHudLens(lensMeta) {
   const nameEl = document.getElementById('hud-lens-name');
   const iconEl = document.getElementById('hud-lens-icon');
   const statusEl = document.getElementById('hud-lens-status');
-  const likeEl1 = document.getElementById('hud-like-count');
-  const likeEl2 = document.getElementById('btn-like-count');
 
   if (nameEl) nameEl.textContent = lensMeta.name;
   if (iconEl && lensMeta.icon_url) iconEl.src = lensMeta.icon_url;
-  if (statusEl) statusEl.textContent = 'Local AR 60 FPS';
-
-  const likes = lensMeta.likes || 150;
-  if (likeEl1) likeEl1.textContent = likes;
-  if (likeEl2) likeEl2.textContent = likes;
-}
-
-// Interactive Like Button Handler
-window.handleLikeClick = async function(e) {
-  if (e) e.stopPropagation();
-
-  // 1. Haptic feedback
-  if (navigator.vibrate) {
-    try { navigator.vibrate([35, 30, 45]); } catch (_) {}
-  }
-
-  // 2. Button Pop Animation
-  const hudBtn = document.getElementById('hud-like-btn');
-  const floatBtn = document.getElementById('btn-like');
-  if (hudBtn) {
-    hudBtn.classList.add('pop');
-    setTimeout(() => hudBtn.classList.remove('pop'), 250);
-  }
-  if (floatBtn) {
-    floatBtn.classList.add('pop');
-    setTimeout(() => floatBtn.classList.remove('pop'), 250);
-  }
-
-  // 3. Spawn Burst of Flying Floating Hearts
-  spawnFlyingHearts();
-
-  // 4. Optimistically increment count
-  const lens = loadedLensesList.find(l => l.id === ckCurrentLensId);
-  if (lens) {
-    lens.likes = (lens.likes || 0) + 1;
-    updateHudLens(lens);
-  }
-
-  // 5. Send to backend
-  try {
-    const res = await fetch(`/api/like_lens/${ckCurrentLensId}`, { method: 'POST' });
-    const data = await res.json();
-    if (data.success && lens) {
-      lens.likes = data.likes;
-      updateHudLens(lens);
-    }
-  } catch (err) {
-    console.warn('[Like API]', err);
-  }
-};
-
-function spawnFlyingHearts() {
-  const container = document.getElementById('flying-hearts-container');
-  if (!container) return;
-
-  const heartEmojis = ['❤️', '💖', '✨', '🔥', '💕', '🥰'];
-  const rect = container.getBoundingClientRect();
-  const startX = rect.width - 45;
-  const startY = 120;
-
-  for (let i = 0; i < 6; i++) {
-    const heart = document.createElement('div');
-    heart.className = 'floating-heart-particle';
-    heart.textContent = heartEmojis[Math.floor(Math.random() * heartEmojis.length)];
-    const tx = (Math.random() - 0.5) * 80;
-    const rot = (Math.random() - 0.5) * 45;
-
-    heart.style.left = `${startX + (Math.random() - 0.5) * 20}px`;
-    heart.style.top = `${startY + (Math.random() - 0.5) * 20}px`;
-    heart.style.setProperty('--tx', `${tx}px`);
-    heart.style.setProperty('--rot', `${rot}deg`);
-
-    container.appendChild(heart);
-    setTimeout(() => { heart.remove(); }, 1200);
-  }
+  if (statusEl) statusEl.textContent = 'Active (60 FPS)';
 }
 
 // Camera Flip (Front ↔ Rear)
@@ -958,78 +878,6 @@ function renderVerdantTiara(ctx, x, y, t) {
   });
 
   ctx.restore();
-}
-
-// Interactive Touch FX (Sparks & Hearts on Screen Tap)
-function setupTouchFx() {
-  touchCanvas = document.getElementById('touch-fx-canvas');
-  if (!touchCanvas) return;
-  touchCtx = touchCanvas.getContext('2d');
-
-  const resize = () => {
-    touchCanvas.width = touchCanvas.clientWidth || 720;
-    touchCanvas.height = touchCanvas.clientHeight || 1280;
-  };
-  resize();
-  window.addEventListener('resize', resize);
-
-  const wrapper = document.getElementById('canvas-wrapper');
-  if (!wrapper) return;
-
-  const onTouch = (clientX, clientY) => {
-    const rect = wrapper.getBoundingClientRect();
-    const x = clientX - rect.left;
-    const y = clientY - rect.top;
-
-    const colors = ['#ff2a7a', '#00f2fe', '#fffc00', '#ffffff', '#00e676'];
-    for (let i = 0; i < 12; i++) {
-      const angle = Math.random() * Math.PI * 2;
-      const speed = 2 + Math.random() * 5;
-      touchParticles.push({
-        x, y,
-        vx: Math.cos(angle) * speed,
-        vy: Math.sin(angle) * speed,
-        size: 3 + Math.random() * 5,
-        color: colors[Math.floor(Math.random() * colors.length)],
-        life: 1.0,
-        decay: 0.035 + Math.random() * 0.02
-      });
-    }
-  };
-
-  wrapper.addEventListener('pointerdown', (e) => {
-    // Only spawn if not clicking an interactive overlay
-    onTouch(e.clientX, e.clientY);
-  });
-
-  const animTouch = () => {
-    if (touchCtx) {
-      touchCtx.clearRect(0, 0, touchCanvas.width, touchCanvas.height);
-      for (let i = touchParticles.length - 1; i >= 0; i--) {
-        const p = touchParticles[i];
-        p.x += p.vx;
-        p.y += p.vy;
-        p.life -= p.decay;
-
-        if (p.life <= 0) {
-          touchParticles.splice(i, 1);
-          continue;
-        }
-
-        touchCtx.save();
-        touchCtx.globalAlpha = p.life;
-        touchCtx.fillStyle = p.color;
-        touchCtx.shadowColor = p.color;
-        touchCtx.shadowBlur = 8;
-        touchCtx.beginPath();
-        touchCtx.arc(p.x, p.y, p.size * p.life, 0, Math.PI * 2);
-        touchCtx.fill();
-        touchCtx.restore();
-      }
-    }
-    requestAnimationFrame(animTouch);
-  };
-  requestAnimationFrame(animTouch);
 }
 
 // SNAPCHAT SHUTTER (Tap for Photo, Hold for Video)
