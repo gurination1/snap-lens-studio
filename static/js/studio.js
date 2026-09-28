@@ -558,33 +558,51 @@ class SnapchatFaceEngine {
 
   initFaceMesh() {
     if (typeof window.FaceMesh === 'undefined') {
-      setTimeout(() => this.initFaceMesh(), 350);
+      setTimeout(() => this.initFaceMesh(), 250);
       return;
     }
 
-    try {
-      this.faceMesh = new window.FaceMesh({
-        locateFile: (file) => `/static/vendor/mediapipe/${file}`
-      });
+    const tryInit = (useCdnFallback = false) => {
+      try {
+        const baseUrl = useCdnFallback
+          ? 'https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh@0.4.1633559619/'
+          : '/static/vendor/mediapipe/';
 
-      this.faceMesh.setOptions({
-        maxNumFaces: 1,
-        refineLandmarks: true,
-        minDetectionConfidence: 0.5,
-        minTrackingConfidence: 0.5
-      });
+        this.faceMesh = new window.FaceMesh({
+          locateFile: (file) => `${baseUrl}${file}`
+        });
 
-      this.faceMesh.onResults((results) => {
-        this.handleResults(results);
-      });
+        this.faceMesh.setOptions({
+          maxNumFaces: 1,
+          refineLandmarks: true,
+          minDetectionConfidence: 0.5,
+          minTrackingConfidence: 0.5
+        });
 
-      this.isFaceMeshReady = true;
-      console.log('[SnapAR Engine] Snapchat 468 3D Face Landmark Engine Initialized!');
-      const badge = document.getElementById('engine-status-text');
-      if (badge) badge.textContent = 'Snapchat 3D Mesh Engine (468 pts)';
-    } catch (err) {
-      console.warn('[FaceEngine Init Warning]', err);
-    }
+        this.faceMesh.onResults((results) => {
+          this.handleResults(results);
+        });
+
+        this.faceMesh.initialize().then(() => {
+          this.isFaceMeshReady = true;
+          console.log(`[SnapAR Engine] Snapchat 468 3D Face Landmark Engine Initialized (${useCdnFallback ? 'CDN' : 'Local'})!`);
+          const badge = document.getElementById('engine-status-text');
+          if (badge) badge.textContent = 'Snapchat 3D Mesh Engine (Searching for Face...)';
+        }).catch((err) => {
+          console.warn('[FaceEngine Init Warning - Switching to CDN Fallback]', err);
+          if (!useCdnFallback) {
+            tryInit(true);
+          }
+        });
+      } catch (err) {
+        console.warn('[FaceEngine Exception - Switching to CDN Fallback]', err);
+        if (!useCdnFallback) {
+          tryInit(true);
+        }
+      }
+    };
+
+    tryInit(false);
   }
 
   async sendFrame(imageSource) {
@@ -593,7 +611,7 @@ class SnapchatFaceEngine {
     try {
       await this.faceMesh.send({ image: imageSource });
     } catch (err) {
-      // Non-blocking frame drop
+      console.warn('[FaceEngine sendFrame warning]', err);
     } finally {
       this.isProcessing = false;
     }
@@ -609,6 +627,8 @@ class SnapchatFaceEngine {
         this.isFaceFound = true;
         this.trigger('onFaceFound');
         this.hideHint('lens_hint_find_face');
+        const badge = document.getElementById('engine-status-text');
+        if (badge) badge.textContent = 'Snapchat 3D Mesh (Face Tracked • 468 pts)';
       }
 
       // Convert normalized landmarks to 720x1280 screen space
@@ -653,10 +673,10 @@ class SnapchatFaceEngine {
       const noseDiffY = (nose.y - eyeMidY) / (interOcular * 0.5) - 0.7;
       const pitch = Math.max(-1.0, Math.min(1.0, noseDiffY * 2.0));
 
-      // Compute Mouth Open Ratio
-      const mouthGap = Math.max(0, lowerLip.y - upperLip.y);
+      // Compute Mouth Open Ratio (Euclidean distance immune to roll)
+      const mouthGap = Math.hypot(lowerLip.x - upperLip.x, lowerLip.y - upperLip.y);
       const mouthRatio = mouthGap / interOcular;
-      const isMouthOpen = mouthRatio > this.mouthOpenThreshold;
+      const isMouthOpen = mouthRatio > 0.08;
 
       // Update target
       this.target.headAngle = angleDeg;
@@ -710,6 +730,8 @@ class SnapchatFaceEngine {
       if (this.isFaceFound && (performance.now() - this.lastDetectedTime > 900)) {
         this.isFaceFound = false;
         this.trigger('onFaceLost');
+        const badge = document.getElementById('engine-status-text');
+        if (badge) badge.textContent = 'Snapchat 3D Mesh (Searching for Face...)';
       }
     }
   }
@@ -1080,19 +1102,17 @@ function startLocalArEngine() {
         cropCtx.fillStyle = '#06080d';
         cropCtx.fillRect(0, 0, 720, 1280);
 
-        const scale = Math.max(720 / vw, 1280 / vh) * 0.78;
+        const scale = Math.max(720 / vw, 1280 / vh);
         const dw = vw * scale;
         const dh = vh * scale;
         const dx = (720 - dw) / 2;
-        const dy = (1280 - dh) / 2 + 30;
+        const dy = (1280 - dh) / 2;
 
         if (ckIsMirrored) {
           cropCtx.translate(720, 0);
           cropCtx.scale(-1, 1);
-          cropCtx.drawImage(webcamRaw, 720 - (dx + dw), dy, dw, dh);
-        } else {
-          cropCtx.drawImage(webcamRaw, dx, dy, dw, dh);
         }
+        cropCtx.drawImage(webcamRaw, dx, dy, dw, dh);
         cropCtx.restore();
       }
     } else if (ckActiveSource === 'model1' || ckActiveSource === 'model2' || (ckActiveSource === 'custom' && customMediaType === 'video')) {

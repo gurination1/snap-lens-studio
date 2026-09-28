@@ -22,6 +22,8 @@ from werkzeug.utils import secure_filename
 
 mimetypes.add_type('application/wasm', '.wasm')
 mimetypes.add_type('application/octet-stream', '.data')
+mimetypes.add_type('application/octet-stream', '.binarypb')
+mimetypes.add_type('model/obj', '.obj')
 
 BASE_DIR = os.path.abspath(os.path.dirname(__file__))
 STATIC_DIR = os.path.join(BASE_DIR, "static")
