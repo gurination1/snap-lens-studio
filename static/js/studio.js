@@ -278,8 +278,11 @@ async function selectLens(lensId) {
     updateHudLens(lensMeta);
   }
 
-  // Trigger Local AR Re-sync
+  // Trigger Local AR Re-sync & Snapchat Hint
   resetLocalArParticles();
+  if (snapTracker) {
+    snapTracker.showHint('lens_hint_open_your_mouth', 4.5);
+  }
 
   // Also apply to Camera Kit if active
   if (ckSession && ckInstance) {
@@ -466,10 +469,407 @@ function setupSplitSlider() {
   }, { passive: true });
 }
 
-// LOCAL AR RENDERING ENGINE (100% Client-Side WebGL2 / Canvas2D at 60-120 FPS)
+// ============================================================================
+// SNAPCHAT FACE TRACKING ENGINE (Reverse-Engineered from Official Snap Lenses)
+// Real-time 468 3D Landmark Tracking • Head Pose Kinematics • Mouth Open Triggers
+// ============================================================================
+
+let mouthVfxParticles = [];
+let snapTracker = null;
+
+class SnapchatFaceEngine {
+  constructor() {
+    this.isFaceMeshReady = false;
+    this.isProcessing = false;
+    this.faceMesh = null;
+    this.lastDetectedTime = 0;
+    this.isFaceFound = false;
+    this.showWireframe = false;
+
+    // Active Hint State
+    this.currentHint = null;
+    this.hintTimeout = null;
+
+    // Public vars (Exact 1:1 replica of Snapchat Face Events.js publicVars)
+    this.publicVars = {
+      headAngle: 0,             // Head tilt angle in degrees (-45 to 45)
+      headAngleRad: 0,          // Radians for canvas context rotation
+      headYaw: 0,               // Turning left / right (-1 to 1)
+      headPitch: 0,             // Looking up / down (-1 to 1)
+      scaleFactor: 1.0,         // Scale derived from interocular distance
+      foreheadPosition2D: { x: 360, y: 340 },
+      headCenterPosition2D: { x: 360, y: 440 },
+      leftEyePosition2D: { x: 290, y: 460 },
+      rightEyePosition2D: { x: 430, y: 460 },
+      nosePosition2D: { x: 360, y: 530 },
+      mouthPosition2D: { x: 360, y: 650 },
+      leftCheekPosition2D: { x: 220, y: 560 },
+      rightCheekPosition2D: { x: 500, y: 560 },
+      chinPosition2D: { x: 360, y: 780 },
+      mouthOpenRatio: 0,
+      isMouthOpen: false,
+      isWideOpen: false
+    };
+
+    // Target tracking values for smooth exponential moving average
+    this.target = JSON.parse(JSON.stringify(this.publicVars));
+    this.rawLandmarks = null;
+
+    // Event listeners
+    this.listeners = {
+      onFaceFound: [],
+      onFaceLost: [],
+      onMouthOpened: [],
+      onMouthClosed: [],
+      onTiltLeft: [],
+      onTiltRight: [],
+      onTiltCenter: [],
+      onBrowsRaised: []
+    };
+
+    this.headTiltThresholdAngle = 10;
+    this.currentHeadState = "NONE"; // NONE, LEFT, RIGHT
+    this.mouthOpenThreshold = 0.12;
+
+    this.initFaceMesh();
+  }
+
+  on(eventName, cb) {
+    if (this.listeners[eventName]) this.listeners[eventName].push(cb);
+  }
+
+  trigger(eventName, data) {
+    if (this.listeners[eventName]) {
+      this.listeners[eventName].forEach(cb => {
+        try { cb(data); } catch (e) { console.error(e); }
+      });
+    }
+  }
+
+  initFaceMesh() {
+    if (typeof window.FaceMesh === 'undefined') {
+      setTimeout(() => this.initFaceMesh(), 350);
+      return;
+    }
+
+    try {
+      this.faceMesh = new window.FaceMesh({
+        locateFile: (file) => `/static/vendor/mediapipe/${file}`
+      });
+
+      this.faceMesh.setOptions({
+        maxNumFaces: 1,
+        refineLandmarks: true,
+        minDetectionConfidence: 0.5,
+        minTrackingConfidence: 0.5
+      });
+
+      this.faceMesh.onResults((results) => {
+        this.handleResults(results);
+      });
+
+      this.isFaceMeshReady = true;
+      console.log('[SnapAR Engine] Snapchat 468 3D Face Landmark Engine Initialized!');
+      const badge = document.getElementById('engine-status-text');
+      if (badge) badge.textContent = 'Snapchat 3D Mesh Engine (468 pts)';
+    } catch (err) {
+      console.warn('[FaceEngine Init Warning]', err);
+    }
+  }
+
+  async sendFrame(imageSource) {
+    if (!this.isFaceMeshReady || this.isProcessing || !imageSource) return;
+    this.isProcessing = true;
+    try {
+      await this.faceMesh.send({ image: imageSource });
+    } catch (err) {
+      // Non-blocking frame drop
+    } finally {
+      this.isProcessing = false;
+    }
+  }
+
+  handleResults(results) {
+    if (results && results.multiFaceLandmarks && results.multiFaceLandmarks.length > 0) {
+      const lm = results.multiFaceLandmarks[0];
+      this.rawLandmarks = lm;
+      this.lastDetectedTime = performance.now();
+
+      if (!this.isFaceFound) {
+        this.isFaceFound = true;
+        this.trigger('onFaceFound');
+        this.hideHint('lens_hint_find_face');
+      }
+
+      // Convert normalized landmarks to 720x1280 screen space
+      const toScreen = (idx) => ({
+        x: lm[idx].x * 720,
+        y: lm[idx].y * 1280,
+        z: (lm[idx].z || 0) * 720
+      });
+
+      const forehead = toScreen(10);
+      const headCenter = toScreen(9);
+      const nose = toScreen(1);
+      const leftEyeOuter = toScreen(33);
+      const leftEyeInner = toScreen(133);
+      const rightEyeInner = toScreen(362);
+      const rightEyeOuter = toScreen(263);
+      const leftEye = { x: (leftEyeOuter.x + leftEyeInner.x) / 2, y: (leftEyeOuter.y + leftEyeInner.y) / 2, z: (leftEyeOuter.z + leftEyeInner.z) / 2 };
+      const rightEye = { x: (rightEyeOuter.x + rightEyeInner.x) / 2, y: (rightEyeOuter.y + rightEyeInner.y) / 2, z: (rightEyeOuter.z + rightEyeInner.z) / 2 };
+      const leftCheek = toScreen(234);
+      const rightCheek = toScreen(454);
+      const upperLip = toScreen(13);
+      const lowerLip = toScreen(14);
+      const chin = toScreen(152);
+
+      // Compute Interocular Distance & Scale
+      const dx = rightEye.x - leftEye.x;
+      const dy = rightEye.y - leftEye.y;
+      const interOcular = Math.max(20, Math.hypot(dx, dy));
+      const scale = Math.max(0.4, Math.min(2.5, interOcular / 125.0));
+
+      // Compute Head Angle (Roll) in radians & degrees
+      const angleRad = Math.atan2(dy, dx);
+      const angleDeg = angleRad * (180 / Math.PI);
+
+      // Compute Yaw (turning left / right)
+      const eyeMidX = (leftEye.x + rightEye.x) / 2;
+      const noseDiffX = (nose.x - eyeMidX) / (interOcular * 0.5);
+      const yaw = Math.max(-1.0, Math.min(1.0, noseDiffX * 1.5));
+
+      // Compute Pitch (tilting up / down)
+      const eyeMidY = (leftEye.y + rightEye.y) / 2;
+      const noseDiffY = (nose.y - eyeMidY) / (interOcular * 0.5) - 0.7;
+      const pitch = Math.max(-1.0, Math.min(1.0, noseDiffY * 2.0));
+
+      // Compute Mouth Open Ratio
+      const mouthGap = Math.max(0, lowerLip.y - upperLip.y);
+      const mouthRatio = mouthGap / interOcular;
+      const isMouthOpen = mouthRatio > this.mouthOpenThreshold;
+
+      // Update target
+      this.target.headAngle = angleDeg;
+      this.target.headAngleRad = angleRad;
+      this.target.headYaw = yaw;
+      this.target.headPitch = pitch;
+      this.target.scaleFactor = scale;
+      this.target.foreheadPosition2D = forehead;
+      this.target.headCenterPosition2D = headCenter;
+      this.target.leftEyePosition2D = leftEye;
+      this.target.rightEyePosition2D = rightEye;
+      this.target.nosePosition2D = nose;
+      this.target.mouthPosition2D = { x: (upperLip.x + lowerLip.x) / 2, y: (upperLip.y + lowerLip.y) / 2 };
+      this.target.leftCheekPosition2D = leftCheek;
+      this.target.rightCheekPosition2D = rightCheek;
+      this.target.chinPosition2D = chin;
+      this.target.mouthOpenRatio = mouthRatio;
+      this.target.isMouthOpen = isMouthOpen;
+      this.target.isWideOpen = mouthRatio > 0.28;
+
+      // Check Facial Events
+      if (isMouthOpen && !this.publicVars.isMouthOpen) {
+        this.trigger('onMouthOpened');
+        this.hideHint('lens_hint_open_your_mouth');
+      } else if (!isMouthOpen && this.publicVars.isMouthOpen) {
+        this.trigger('onMouthClosed');
+      }
+
+      // Check Tilt Events
+      if (Math.abs(angleDeg) < 4) {
+        if (this.currentHeadState !== 'NONE') {
+          this.currentHeadState = 'NONE';
+          this.trigger('onTiltCenter');
+        }
+      } else if (angleDeg < -this.headTiltThresholdAngle) {
+        if (this.currentHeadState !== 'LEFT') {
+          this.currentHeadState = 'LEFT';
+          this.trigger('onTiltLeft');
+          this.hideHint('lens_hint_tilt_your_head');
+        }
+      } else if (angleDeg > this.headTiltThresholdAngle) {
+        if (this.currentHeadState !== 'RIGHT') {
+          this.currentHeadState = 'RIGHT';
+          this.trigger('onTiltRight');
+          this.hideHint('lens_hint_tilt_your_head');
+        }
+      }
+
+    } else {
+      // Face lost
+      if (this.isFaceFound && (performance.now() - this.lastDetectedTime > 900)) {
+        this.isFaceFound = false;
+        this.trigger('onFaceLost');
+      }
+    }
+  }
+
+  // Smooth interpolation every render frame (120 FPS capable)
+  updateSmoothedState() {
+    const lerp = (a, b, factor) => a + (b - a) * factor;
+    const lerpPt = (p1, p2, factor) => ({
+      x: lerp(p1.x, p2.x, factor),
+      y: lerp(p1.y, p2.y, factor),
+      z: lerp(p1.z || 0, p2.z || 0, factor)
+    });
+
+    // If face not detected recently, gently float to center
+    if (!this.isFaceFound) {
+      const t = performance.now() * 0.0015;
+      this.target.foreheadPosition2D = { x: 360 + Math.sin(t) * 12, y: 350 + Math.cos(t * 1.3) * 8 };
+      this.target.headCenterPosition2D = { x: 360, y: 440 };
+      this.target.leftEyePosition2D = { x: 295, y: 460 };
+      this.target.rightEyePosition2D = { x: 425, y: 460 };
+      this.target.nosePosition2D = { x: 360, y: 530 };
+      this.target.mouthPosition2D = { x: 360, y: 650 };
+      this.target.leftCheekPosition2D = { x: 220, y: 560 };
+      this.target.rightCheekPosition2D = { x: 500, y: 560 };
+      this.target.chinPosition2D = { x: 360, y: 780 };
+      this.target.headAngle = Math.sin(t) * 2;
+      this.target.headAngleRad = (Math.sin(t) * 2) * Math.PI / 180;
+      this.target.headYaw = Math.sin(t * 0.8) * 0.08;
+      this.target.headPitch = 0;
+      this.target.scaleFactor = 1.0;
+      this.target.mouthOpenRatio = 0;
+      this.target.isMouthOpen = false;
+    }
+
+    const posFactor = 0.38;
+    const rotFactor = 0.32;
+    const scaleFactor = 0.28;
+
+    const pv = this.publicVars;
+    const tg = this.target;
+
+    pv.foreheadPosition2D = lerpPt(pv.foreheadPosition2D, tg.foreheadPosition2D, posFactor);
+    pv.headCenterPosition2D = lerpPt(pv.headCenterPosition2D, tg.headCenterPosition2D, posFactor);
+    pv.leftEyePosition2D = lerpPt(pv.leftEyePosition2D, tg.leftEyePosition2D, posFactor);
+    pv.rightEyePosition2D = lerpPt(pv.rightEyePosition2D, tg.rightEyePosition2D, posFactor);
+    pv.nosePosition2D = lerpPt(pv.nosePosition2D, tg.nosePosition2D, posFactor);
+    pv.mouthPosition2D = lerpPt(pv.mouthPosition2D, tg.mouthPosition2D, posFactor);
+    pv.leftCheekPosition2D = lerpPt(pv.leftCheekPosition2D, tg.leftCheekPosition2D, posFactor);
+    pv.rightCheekPosition2D = lerpPt(pv.rightCheekPosition2D, tg.rightCheekPosition2D, posFactor);
+    pv.chinPosition2D = lerpPt(pv.chinPosition2D, tg.chinPosition2D, posFactor);
+
+    pv.headAngle = lerp(pv.headAngle, tg.headAngle, rotFactor);
+    pv.headAngleRad = lerp(pv.headAngleRad, tg.headAngleRad, rotFactor);
+    pv.headYaw = lerp(pv.headYaw, tg.headYaw, rotFactor);
+    pv.headPitch = lerp(pv.headPitch, tg.headPitch, rotFactor);
+    pv.scaleFactor = lerp(pv.scaleFactor, tg.scaleFactor, scaleFactor);
+    pv.mouthOpenRatio = lerp(pv.mouthOpenRatio, tg.mouthOpenRatio, 0.45);
+    pv.isMouthOpen = tg.isMouthOpen;
+    pv.isWideOpen = tg.isWideOpen;
+    pv.isFaceFound = this.isFaceFound;
+  }
+
+  showHint(hintName, durationSec = 4) {
+    const capsule = document.getElementById('snap-hint-capsule');
+    const icon = document.getElementById('snap-hint-icon');
+    const text = document.getElementById('snap-hint-text');
+    if (!capsule || !text) return;
+
+    this.currentHint = hintName;
+    clearTimeout(this.hintTimeout);
+
+    const hintMap = {
+      lens_hint_open_your_mouth: { icon: '👄', text: 'OPEN YOUR MOUTH' },
+      lens_hint_find_face: { icon: '👤', text: 'FIND A FACE' },
+      lens_hint_tilt_your_head: { icon: '🔄', text: 'TILT YOUR HEAD' },
+      lens_hint_smile: { icon: '😊', text: 'SMILE' },
+      lens_hint_raise_your_eyebrows: { icon: '👀', text: 'RAISE YOUR EYEBROWS' }
+    };
+
+    const cfg = hintMap[hintName] || { icon: '✨', text: hintName.replace('lens_hint_', '').replace(/_/g, ' ') };
+    if (icon) icon.textContent = cfg.icon;
+    text.textContent = cfg.text;
+
+    capsule.classList.remove('fade-out');
+    capsule.style.display = 'inline-flex';
+
+    if (durationSec > 0) {
+      this.hintTimeout = setTimeout(() => {
+        this.hideHint(hintName);
+      }, durationSec * 1000);
+    }
+  }
+
+  hideHint(hintName) {
+    if (hintName && this.currentHint !== hintName) return;
+    const capsule = document.getElementById('snap-hint-capsule');
+    if (!capsule) return;
+    capsule.classList.add('fade-out');
+    setTimeout(() => {
+      if (capsule.classList.contains('fade-out')) {
+        capsule.style.display = 'none';
+      }
+    }, 280);
+    this.currentHint = null;
+  }
+
+  drawWireframe(ctx) {
+    if (!this.showWireframe || !this.rawLandmarks) return;
+    ctx.save();
+    ctx.strokeStyle = 'rgba(0, 242, 254, 0.45)';
+    ctx.fillStyle = 'rgba(0, 242, 254, 0.8)';
+    ctx.lineWidth = 0.8;
+
+    const lm = this.rawLandmarks;
+    const step = 3;
+    for (let i = 0; i < lm.length; i += step) {
+      const px = lm[i].x * 720;
+      const py = lm[i].y * 1280;
+      ctx.fillRect(px - 1, py - 1, 2, 2);
+    }
+
+    // Face contour
+    const faceOval = [10, 338, 297, 332, 284, 251, 389, 356, 454, 323, 361, 288, 397, 365, 379, 378, 400, 377, 152, 148, 176, 149, 150, 136, 172, 58, 132, 93, 234, 127, 162, 21, 54, 103, 67, 109, 10];
+    ctx.beginPath();
+    faceOval.forEach((idx, i) => {
+      const px = lm[idx].x * 720;
+      const py = lm[idx].y * 1280;
+      if (i === 0) ctx.moveTo(px, py);
+      else ctx.lineTo(px, py);
+    });
+    ctx.stroke();
+
+    // Key anchors in glowing gold
+    ctx.fillStyle = '#fffc00';
+    [10, 9, 1, 33, 263, 13, 14, 234, 454].forEach(idx => {
+      ctx.beginPath();
+      ctx.arc(lm[idx].x * 720, lm[idx].y * 1280, 3.5, 0, Math.PI * 2);
+      ctx.fill();
+    });
+
+    // Telemetry Box
+    ctx.fillStyle = 'rgba(6, 8, 13, 0.8)';
+    ctx.strokeStyle = 'rgba(0, 242, 254, 0.4)';
+    ctx.fillRect(20, 90, 260, 68);
+    ctx.strokeRect(20, 90, 260, 68);
+    ctx.fillStyle = '#00f2fe';
+    ctx.font = '10px monospace';
+    const pv = this.publicVars;
+    ctx.fillText(`3D FACE MESH • 468 LANDMARKS`, 30, 106);
+    ctx.fillStyle = '#ffffff';
+    ctx.fillText(`Roll: ${pv.headAngle.toFixed(1)}° | Yaw: ${pv.headYaw.toFixed(2)}`, 30, 122);
+    ctx.fillText(`Scale: ${pv.scaleFactor.toFixed(2)} | Mouth: ${(pv.mouthOpenRatio * 100).toFixed(0)}%`, 30, 138);
+
+    ctx.restore();
+  }
+}
+
+// Global Toggle for 3D Face Mesh Wireframe
+window.toggleMeshWireframe = function() {
+  if (!snapTracker) return;
+  snapTracker.showWireframe = !snapTracker.showWireframe;
+  const btn = document.getElementById('btn-mesh');
+  if (btn) btn.classList.toggle('active', snapTracker.showWireframe);
+};
+
+// Particles Initialization
 function resetLocalArParticles() {
   crownParticles = [];
   kitsuneWisps = [];
+  mouthVfxParticles = [];
 
   for (let i = 0; i < 28; i++) {
     crownParticles.push({
@@ -495,6 +895,7 @@ function resetLocalArParticles() {
   }
 }
 
+// Start Snapchat Local AR Engine
 function startLocalArEngine() {
   const canvas = document.getElementById('ck-canvas');
   const ctx = canvas.getContext('2d');
@@ -506,6 +907,15 @@ function startLocalArEngine() {
   const rawCtx = rawCanvas ? rawCanvas.getContext('2d') : null;
 
   resetLocalArParticles();
+
+  // Initialize Snapchat Tracker
+  snapTracker = new SnapchatFaceEngine();
+  window.snapTracker = snapTracker;
+
+  // Show initial hint for active lens
+  setTimeout(() => {
+    if (snapTracker) snapTracker.showHint('lens_hint_open_your_mouth', 5);
+  }, 1000);
 
   const renderFrame = (timestamp) => {
     localFaceSimTime += 0.025;
@@ -540,6 +950,12 @@ function startLocalArEngine() {
       }
     }
 
+    // Send frame to Face Tracking engine asynchronously
+    snapTracker.sendFrame(cropCanvas);
+
+    // Update smooth tracking state (interpolated at 60-120 FPS)
+    snapTracker.updateSmoothedState();
+
     // 2. Draw Base Video Frame to Main Canvas
     ctx.save();
     ctx.drawImage(cropCanvas, 0, 0, 720, 1280);
@@ -558,8 +974,11 @@ function startLocalArEngine() {
       ctx.restore();
     }
 
-    // 4. Render Active AR Lens Procedural Effect
-    renderActiveArLens(ctx, localFaceSimTime);
+    // 4. Render Active AR Lens (100% Face-Tracked via Snapchat Kinematics)
+    renderActiveArLens(ctx, snapTracker, localFaceSimTime);
+
+    // 5. Wireframe Overlay (if toggled)
+    snapTracker.drawWireframe(ctx);
 
     ctx.restore();
 
@@ -569,63 +988,71 @@ function startLocalArEngine() {
   localRenderLoopId = requestAnimationFrame(renderFrame);
 }
 
-// Procedural AR Lenses (Runs 100% Client-Side at 60-120 FPS)
-function renderActiveArLens(ctx, t) {
-  // Head / Forehead Anchor kinematics with subtle breathing float
-  const headX = 360 + Math.sin(t * 0.8) * 4;
-  const headY = 380 + Math.cos(t * 1.2) * 5;
+// RENDER ACTIVE AR LENS
+function renderActiveArLens(ctx, tracker, t) {
+  const pv = tracker.publicVars;
 
   // LENS 1: Celestial Kitsune
   if (ckCurrentLensId === "4df2b87d-52eb-4ec3-bc0f-fd1919712256") {
-    renderCelestialKitsune(ctx, headX, headY, t);
+    renderCelestialKitsune(ctx, pv, t);
   }
   // LENS 2: Verdant Gilded Tiara
   else if (ckCurrentLensId === "verdant_gilded") {
-    renderVerdantTiara(ctx, headX, headY, t);
+    renderVerdantTiara(ctx, pv, t);
   }
   // LENS 3 & Default: Abyssal Crown
   else {
-    renderAbyssalCrown(ctx, headX, headY, t);
+    renderAbyssalCrown(ctx, pv, t);
   }
 }
 
-// 1. Celestial Kitsune AR Renderer
-function renderCelestialKitsune(ctx, x, y, t) {
+// 1. CELESTIAL KITSUNE (100% Landmark-Locked with Foxfire Mouth Blast)
+function renderCelestialKitsune(ctx, pv, t) {
+  const fx = pv.foreheadPosition2D.x;
+  const fy = pv.foreheadPosition2D.y;
+  const cx = pv.headCenterPosition2D.x;
+  const cy = pv.headCenterPosition2D.y;
+  const scale = pv.scaleFactor;
+  const roll = pv.headAngleRad;
+  const yaw = pv.headYaw;
+  const isMouthOpen = pv.isMouthOpen;
+
   ctx.save();
 
-  // Floating Foxfire Aura Wisps
+  // Floating Foxfire Aura Wisps orbiting head center
   kitsuneWisps.forEach(w => {
     w.angle += w.speed;
-    const wx = x + Math.cos(w.angle) * w.radius;
-    const wy = y + Math.sin(w.angle) * (w.radius * 0.6) + w.yOff + Math.sin(t * 2 + w.angle) * 10;
+    const wx = cx + Math.cos(w.angle) * (w.radius * scale) + (yaw * 25);
+    const wy = cy + Math.sin(w.angle) * (w.radius * 0.6 * scale) + w.yOff * scale;
 
-    const grad = ctx.createRadialGradient(wx, wy, 1, wx, wy, w.size * 2.5);
+    const grad = ctx.createRadialGradient(wx, wy, 1, wx, wy, w.size * 2.5 * scale);
     grad.addColorStop(0, '#ffffff');
-    grad.addColorStop(0.3, w.color);
+    grad.addColorStop(0.3, isMouthOpen ? '#fffc00' : w.color);
     grad.addColorStop(1, 'rgba(255, 42, 122, 0)');
 
     ctx.fillStyle = grad;
     ctx.beginPath();
-    ctx.arc(wx, wy, w.size * 2.5, 0, Math.PI * 2);
+    ctx.arc(wx, wy, w.size * 2.5 * scale, 0, Math.PI * 2);
     ctx.fill();
   });
 
-  // Kitsune Spirit Ears
-  const earW = 55;
-  const earH = 110;
-  const earY = y - 130;
+  // SPIRIT FOX EARS (Anchored to Forehead Hairline, Rotated to Head Tilt)
+  const earW = 56 * scale;
+  const earH = 115 * scale;
+  const earY = fy - 50 * scale;
 
-  // Left Ear
+  // Left Spirit Ear (Perspective adjusted with Yaw)
   ctx.save();
-  ctx.translate(x - 90, earY);
-  ctx.rotate(-0.25 + Math.sin(t * 1.5) * 0.05);
+  const leftEarX = fx - 78 * scale + yaw * 18 * scale;
+  ctx.translate(leftEarX, earY);
+  ctx.rotate(roll - 0.22 + Math.sin(t * 1.6) * 0.04 - yaw * 0.15);
 
   let earGrad = ctx.createLinearGradient(0, earH, 0, -earH);
-  earGrad.addColorStop(0, 'rgba(255, 42, 122, 0.95)');
+  earGrad.addColorStop(0, isMouthOpen ? '#fffc00' : 'rgba(255, 42, 122, 0.95)');
   earGrad.addColorStop(1, '#ffffff');
   ctx.fillStyle = earGrad;
-  ctx.shadowColor = '#ff2a7a';
-  ctx.shadowBlur = 24;
+  ctx.shadowColor = isMouthOpen ? '#fffc00' : '#ff2a7a';
+  ctx.shadowBlur = isMouthOpen ? 32 : 22;
 
   ctx.beginPath();
   ctx.moveTo(0, earH * 0.5);
@@ -638,7 +1065,7 @@ function renderCelestialKitsune(ctx, x, y, t) {
   // Inner Golden Flame
   ctx.fillStyle = '#fffc00';
   ctx.shadowColor = '#fffc00';
-  ctx.shadowBlur = 16;
+  ctx.shadowBlur = 18;
   ctx.beginPath();
   ctx.moveTo(0, earH * 0.3);
   ctx.lineTo(-earW * 0.4, 0);
@@ -648,17 +1075,18 @@ function renderCelestialKitsune(ctx, x, y, t) {
   ctx.fill();
   ctx.restore();
 
-  // Right Ear
+  // Right Spirit Ear
   ctx.save();
-  ctx.translate(x + 90, earY);
-  ctx.rotate(0.25 - Math.sin(t * 1.5) * 0.05);
+  const rightEarX = fx + 78 * scale + yaw * 18 * scale;
+  ctx.translate(rightEarX, earY);
+  ctx.rotate(roll + 0.22 - Math.sin(t * 1.6) * 0.04 - yaw * 0.15);
 
   earGrad = ctx.createLinearGradient(0, earH, 0, -earH);
-  earGrad.addColorStop(0, 'rgba(255, 42, 122, 0.95)');
+  earGrad.addColorStop(0, isMouthOpen ? '#fffc00' : 'rgba(255, 42, 122, 0.95)');
   earGrad.addColorStop(1, '#ffffff');
   ctx.fillStyle = earGrad;
-  ctx.shadowColor = '#ff2a7a';
-  ctx.shadowBlur = 24;
+  ctx.shadowColor = isMouthOpen ? '#fffc00' : '#ff2a7a';
+  ctx.shadowBlur = isMouthOpen ? 32 : 22;
 
   ctx.beginPath();
   ctx.moveTo(0, earH * 0.5);
@@ -671,7 +1099,7 @@ function renderCelestialKitsune(ctx, x, y, t) {
   // Inner Golden Flame
   ctx.fillStyle = '#fffc00';
   ctx.shadowColor = '#fffc00';
-  ctx.shadowBlur = 16;
+  ctx.shadowBlur = 18;
   ctx.beginPath();
   ctx.moveTo(0, earH * 0.3);
   ctx.lineTo(-earW * 0.4, 0);
@@ -681,17 +1109,16 @@ function renderCelestialKitsune(ctx, x, y, t) {
   ctx.fill();
   ctx.restore();
 
-  // Forehead Spirit Crest (Third Eye Radiant Emblem)
-  const crestY = y - 45;
-  const pulse = 1 + Math.sin(t * 3) * 0.15;
-
+  // FOREHEAD SPIRIT CREST (Third Eye Radiant Emblem) Locked to Head Center
+  const crestPulse = (1 + Math.sin(t * 3.5) * 0.12) * scale * (isMouthOpen ? 1.35 : 1.0);
   ctx.save();
-  ctx.translate(x, crestY);
-  ctx.scale(pulse, pulse);
+  ctx.translate(cx, cy - 25 * scale);
+  ctx.rotate(roll);
+  ctx.scale(crestPulse, crestPulse);
 
-  ctx.shadowColor = '#ff2a7a';
-  ctx.shadowBlur = 25;
-  ctx.fillStyle = '#ff2a7a';
+  ctx.shadowColor = isMouthOpen ? '#fffc00' : '#ff2a7a';
+  ctx.shadowBlur = isMouthOpen ? 30 : 20;
+  ctx.fillStyle = isMouthOpen ? '#fffc00' : '#ff2a7a';
   ctx.beginPath();
   ctx.moveTo(0, -22);
   ctx.lineTo(14, 0);
@@ -701,84 +1128,165 @@ function renderCelestialKitsune(ctx, x, y, t) {
   ctx.fill();
 
   ctx.shadowColor = '#fffc00';
-  ctx.shadowBlur = 18;
+  ctx.shadowBlur = 16;
   ctx.fillStyle = '#ffffff';
   ctx.beginPath();
   ctx.arc(0, 0, 6, 0, Math.PI * 2);
   ctx.fill();
   ctx.restore();
 
-  // Spirit Whiskers on Cheeks
-  ctx.strokeStyle = 'rgba(255, 42, 122, 0.85)';
-  ctx.shadowColor = '#ff2a7a';
-  ctx.shadowBlur = 10;
-  ctx.lineWidth = 3.5;
+  // CHEEK SPIRIT WHISKERS (Anchored to Left & Right Cheeks)
+  ctx.strokeStyle = isMouthOpen ? 'rgba(255, 252, 0, 0.95)' : 'rgba(255, 42, 122, 0.88)';
+  ctx.shadowColor = isMouthOpen ? '#fffc00' : '#ff2a7a';
+  ctx.shadowBlur = 12;
+  ctx.lineWidth = 3.5 * scale;
   ctx.lineCap = 'round';
 
-  [-1, 1].forEach(side => {
-    ctx.beginPath();
-    ctx.moveTo(x + side * 90, y + 60);
-    ctx.quadraticCurveTo(x + side * 140, y + 55, x + side * 180, y + 45);
-    ctx.stroke();
+  // Left Whiskers
+  ctx.save();
+  ctx.translate(pv.leftCheekPosition2D.x, pv.leftCheekPosition2D.y);
+  ctx.rotate(roll);
+  ctx.beginPath();
+  ctx.moveTo(0, -10 * scale);
+  ctx.quadraticCurveTo(-40 * scale, -15 * scale, -80 * scale, -25 * scale);
+  ctx.stroke();
+  ctx.beginPath();
+  ctx.moveTo(0, 10 * scale);
+  ctx.quadraticCurveTo(-40 * scale, 12 * scale, -75 * scale, 5 * scale);
+  ctx.stroke();
+  ctx.restore();
 
+  // Right Whiskers
+  ctx.save();
+  ctx.translate(pv.rightCheekPosition2D.x, pv.rightCheekPosition2D.y);
+  ctx.rotate(roll);
+  ctx.beginPath();
+  ctx.moveTo(0, -10 * scale);
+  ctx.quadraticCurveTo(40 * scale, -15 * scale, 80 * scale, -25 * scale);
+  ctx.stroke();
+  ctx.beginPath();
+  ctx.moveTo(0, 10 * scale);
+  ctx.quadraticCurveTo(40 * scale, 12 * scale, 75 * scale, 5 * scale);
+  ctx.stroke();
+  ctx.restore();
+
+  // MOUTH OPEN TRIGGER: CELESTIAL FOXFIRE BLAST ERUPTION
+  if (isMouthOpen) {
+    const mx = pv.mouthPosition2D.x;
+    const my = pv.mouthPosition2D.y;
+
+    // Spawn high-velocity Foxfire fireballs
+    for (let k = 0; k < 5; k++) {
+      mouthVfxParticles.push({
+        x: mx + (Math.random() - 0.5) * 20 * scale,
+        y: my + (Math.random() - 0.5) * 15 * scale,
+        vx: (Math.random() - 0.5) * 8 * scale + (yaw * 3),
+        vy: (Math.random() - 0.7) * 7 * scale,
+        size: (8 + Math.random() * 16) * scale,
+        life: 1.0,
+        decay: 0.02 + Math.random() * 0.03,
+        color: Math.random() > 0.4 ? '#ff2a7a' : '#fffc00'
+      });
+    }
+
+    // Radiant Mouth Core Flare
+    const flareGrad = ctx.createRadialGradient(mx, my, 2, mx, my, 45 * scale);
+    flareGrad.addColorStop(0, '#ffffff');
+    flareGrad.addColorStop(0.4, '#fffc00');
+    flareGrad.addColorStop(1, 'rgba(255, 42, 122, 0)');
+    ctx.fillStyle = flareGrad;
     ctx.beginPath();
-    ctx.moveTo(x + side * 90, y + 80);
-    ctx.quadraticCurveTo(x + side * 140, y + 80, x + side * 175, y + 75);
-    ctx.stroke();
-  });
+    ctx.arc(mx, my, 45 * scale, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  // Update and render mouth particles
+  for (let i = mouthVfxParticles.length - 1; i >= 0; i--) {
+    const p = mouthVfxParticles[i];
+    p.x += p.vx;
+    p.y += p.vy;
+    p.size *= 1.02;
+    p.life -= p.decay;
+
+    if (p.life <= 0) {
+      mouthVfxParticles.splice(i, 1);
+      continue;
+    }
+
+    ctx.save();
+    ctx.globalAlpha = p.life;
+    ctx.fillStyle = p.color;
+    ctx.shadowColor = p.color;
+    ctx.shadowBlur = 18;
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+  }
 
   ctx.restore();
 }
 
-// 2. Abyssal Crown AR Renderer
-function renderAbyssalCrown(ctx, x, y, t) {
+// 2. ABYSSAL CROWN (100% Landmark-Locked with Lightning Surge)
+function renderAbyssalCrown(ctx, pv, t) {
+  const fx = pv.foreheadPosition2D.x;
+  const fy = pv.foreheadPosition2D.y;
+  const scale = pv.scaleFactor;
+  const roll = pv.headAngleRad;
+  const yaw = pv.headYaw;
+  const isMouthOpen = pv.isMouthOpen;
+
   ctx.save();
+  ctx.translate(fx, fy - 25 * scale);
+  ctx.rotate(roll);
 
-  const crownW = 240;
-  const crownBaseY = y - 75;
+  const crownW = 240 * scale;
+  const crownBaseY = 0;
 
-  // Floating Rising Embers
+  // Rising Embers
   crownParticles.forEach(p => {
-    p.y += p.vy;
-    p.x += p.vx + Math.sin(t * 2 + p.life) * 0.5;
-    if (p.y < crownBaseY - 140) {
-      p.y = crownBaseY + Math.random() * 20;
-      p.x = x + (Math.random() - 0.5) * crownW;
+    p.y += p.vy * scale;
+    p.x += (p.vx + Math.sin(t * 2 + p.life) * 0.5) * scale;
+    if (p.y < crownBaseY - 140 * scale) {
+      p.y = crownBaseY + Math.random() * 20 * scale;
+      p.x = (Math.random() - 0.5) * crownW;
     }
 
-    ctx.fillStyle = `hsla(${p.hue}, 100%, 70%, 0.85)`;
+    ctx.fillStyle = isMouthOpen ? '#00f2fe' : `hsla(${p.hue}, 100%, 70%, 0.85)`;
     ctx.shadowColor = '#00f2fe';
-    ctx.shadowBlur = 12;
+    ctx.shadowBlur = 14;
     ctx.beginPath();
-    ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+    ctx.arc(p.x, p.y, p.size * scale, 0, Math.PI * 2);
     ctx.fill();
   });
 
-  // Base Crown Filigree
-  const baseGrad = ctx.createLinearGradient(x - crownW / 2, crownBaseY, x + crownW / 2, crownBaseY);
+  // Base Filigree
+  const baseGrad = ctx.createLinearGradient(-crownW / 2, crownBaseY, crownW / 2, crownBaseY);
   baseGrad.addColorStop(0, '#101728');
   baseGrad.addColorStop(0.5, '#d4af37');
   baseGrad.addColorStop(1, '#101728');
 
   ctx.strokeStyle = baseGrad;
-  ctx.lineWidth = 6;
+  ctx.lineWidth = 6 * scale;
   ctx.shadowColor = '#00f2fe';
-  ctx.shadowBlur = 15;
+  ctx.shadowBlur = isMouthOpen ? 28 : 16;
   ctx.beginPath();
-  ctx.ellipse(x, crownBaseY, crownW * 0.5, 22, 0, 0, Math.PI * 2);
+  ctx.ellipse(0, crownBaseY, crownW * 0.5, 22 * scale, 0, 0, Math.PI * 2);
   ctx.stroke();
 
   // Spikes & Abyssal Jewels
   const spikeCount = 7;
   const heights = [35, 65, 95, 130, 95, 65, 35];
+  const spikeTops = [];
 
   for (let i = 0; i < spikeCount; i++) {
     const angle = (i / (spikeCount - 1)) * Math.PI - Math.PI / 2;
-    const sx = x + (i - 3) * 36;
-    const sy = crownBaseY + Math.sin(angle) * 10;
-    const sh = heights[i];
+    // Parallax depth shift from yaw
+    const sx = (i - 3) * 36 * scale + (yaw * (4 - Math.abs(i - 3)) * 6 * scale);
+    const sy = crownBaseY + Math.sin(angle) * 10 * scale;
+    const sh = heights[i] * scale * (isMouthOpen ? 1.15 : 1.0);
+    spikeTops.push({ x: sx, y: sy - sh });
 
-    // Metallic Blade
     const spikeGrad = ctx.createLinearGradient(sx, sy, sx, sy - sh);
     spikeGrad.addColorStop(0, '#162238');
     spikeGrad.addColorStop(0.6, '#00f2fe');
@@ -789,14 +1297,14 @@ function renderAbyssalCrown(ctx, x, y, t) {
     ctx.shadowBlur = 20;
 
     ctx.beginPath();
-    ctx.moveTo(sx - 12, sy);
+    ctx.moveTo(sx - 12 * scale, sy);
     ctx.lineTo(sx, sy - sh);
-    ctx.lineTo(sx + 12, sy);
+    ctx.lineTo(sx + 12 * scale, sy);
     ctx.closePath();
     ctx.fill();
 
-    // Cyan Pulsing Jewel on Top
-    const pulse = 1 + Math.sin(t * 3 + i) * 0.25;
+    // Top Pulsing Jewel
+    const pulse = (1 + Math.sin(t * 3 + i) * 0.25) * scale;
     ctx.fillStyle = '#ffffff';
     ctx.shadowColor = '#00f2fe';
     ctx.shadowBlur = 18;
@@ -806,49 +1314,117 @@ function renderAbyssalCrown(ctx, x, y, t) {
   }
 
   // Giant Center Sapphire Jewel
-  const centerPulse = 1 + Math.sin(t * 2.5) * 0.15;
+  const centerPulse = (1 + Math.sin(t * 2.5) * 0.15) * scale * (isMouthOpen ? 1.4 : 1.0);
   ctx.fillStyle = '#00f2fe';
   ctx.shadowColor = '#00f2fe';
-  ctx.shadowBlur = 30;
+  ctx.shadowBlur = isMouthOpen ? 45 : 30;
   ctx.beginPath();
-  ctx.arc(x, crownBaseY - 12, 12 * centerPulse, 0, Math.PI * 2);
+  ctx.arc(0, crownBaseY - 12 * scale, 13 * centerPulse, 0, Math.PI * 2);
   ctx.fill();
 
   ctx.fillStyle = '#ffffff';
   ctx.beginPath();
-  ctx.arc(x - 3, crownBaseY - 15, 4, 0, Math.PI * 2);
+  ctx.arc(-3 * scale, crownBaseY - 15 * scale, 4 * scale, 0, Math.PI * 2);
   ctx.fill();
 
+  // Lightning Arcs between spikes when mouth is open
+  if (isMouthOpen) {
+    ctx.strokeStyle = '#ffffff';
+    ctx.shadowColor = '#00f2fe';
+    ctx.shadowBlur = 22;
+    ctx.lineWidth = 2.5 * scale;
+    for (let k = 0; k < spikeTops.length - 1; k++) {
+      if (Math.random() > 0.3) {
+        ctx.beginPath();
+        ctx.moveTo(spikeTops[k].x, spikeTops[k].y);
+        const midX = (spikeTops[k].x + spikeTops[k + 1].x) / 2 + (Math.random() - 0.5) * 20 * scale;
+        const midY = (spikeTops[k].y + spikeTops[k + 1].y) / 2 + (Math.random() - 0.5) * 20 * scale;
+        ctx.lineTo(midX, midY);
+        ctx.lineTo(spikeTops[k + 1].x, spikeTops[k + 1].y);
+        ctx.stroke();
+      }
+    }
+  }
+
   ctx.restore();
+
+  // MOUTH ABYSSAL SURGE PARTICLES
+  if (isMouthOpen) {
+    const mx = pv.mouthPosition2D.x;
+    const my = pv.mouthPosition2D.y;
+
+    for (let k = 0; k < 4; k++) {
+      mouthVfxParticles.push({
+        x: mx + (Math.random() - 0.5) * 20 * scale,
+        y: my + (Math.random() - 0.5) * 15 * scale,
+        vx: (Math.random() - 0.5) * 6 * scale,
+        vy: -(4 + Math.random() * 8) * scale,
+        size: (5 + Math.random() * 12) * scale,
+        life: 1.0,
+        decay: 0.03 + Math.random() * 0.02,
+        color: Math.random() > 0.3 ? '#00f2fe' : '#ffffff'
+      });
+    }
+  }
+
+  // Render Surge Particles
+  for (let i = mouthVfxParticles.length - 1; i >= 0; i--) {
+    const p = mouthVfxParticles[i];
+    p.x += p.vx;
+    p.y += p.vy;
+    p.life -= p.decay;
+
+    if (p.life <= 0) {
+      mouthVfxParticles.splice(i, 1);
+      continue;
+    }
+
+    ctx.save();
+    ctx.globalAlpha = p.life;
+    ctx.fillStyle = p.color;
+    ctx.shadowColor = '#00f2fe';
+    ctx.shadowBlur = 18;
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+  }
 }
 
-// 3. Verdant Gilded Tiara AR Renderer
-function renderVerdantTiara(ctx, x, y, t) {
-  ctx.save();
+// 3. VERDANT GILDED TIARA (100% Landmark-Locked with Emerald Starburst)
+function renderVerdantTiara(ctx, pv, t) {
+  const fx = pv.foreheadPosition2D.x;
+  const fy = pv.foreheadPosition2D.y;
+  const scale = pv.scaleFactor;
+  const roll = pv.headAngleRad;
+  const isMouthOpen = pv.isMouthOpen;
 
-  const tiaraW = 210;
-  const tiaraBaseY = y - 70;
+  ctx.save();
+  ctx.translate(fx, fy - 20 * scale);
+  ctx.rotate(roll);
+
+  const tiaraW = 210 * scale;
+  const tiaraBaseY = 0;
 
   // Gilded Gold Arc
   ctx.strokeStyle = '#ffd700';
   ctx.shadowColor = '#ffd700';
-  ctx.shadowBlur = 14;
-  ctx.lineWidth = 5;
+  ctx.shadowBlur = isMouthOpen ? 26 : 14;
+  ctx.lineWidth = 5 * scale;
   ctx.beginPath();
-  ctx.arc(x, tiaraBaseY + 60, tiaraW * 0.55, -Math.PI * 0.72, -Math.PI * 0.28);
+  ctx.arc(0, tiaraBaseY + 60 * scale, tiaraW * 0.55, -Math.PI * 0.72, -Math.PI * 0.28);
   ctx.stroke();
 
   // Emerald Jewels & Golden Leaves
   const gems = [
-    { x: x - 75, y: tiaraBaseY + 12, r: 8 },
-    { x: x - 40, y: tiaraBaseY - 12, r: 11 },
-    { x: x, y: tiaraBaseY - 32, r: 15 },
-    { x: x + 40, y: tiaraBaseY - 12, r: 11 },
-    { x: x + 75, y: tiaraBaseY + 12, r: 8 }
+    { x: -75 * scale, y: tiaraBaseY + 12 * scale, r: 8 * scale },
+    { x: -40 * scale, y: tiaraBaseY - 12 * scale, r: 11 * scale },
+    { x: 0, y: tiaraBaseY - 32 * scale, r: 15 * scale },
+    { x: 40 * scale, y: tiaraBaseY - 12 * scale, r: 11 * scale },
+    { x: 75 * scale, y: tiaraBaseY + 12 * scale, r: 8 * scale }
   ];
 
   gems.forEach((g, idx) => {
-    // Emerald Jewel
     ctx.fillStyle = '#00e676';
     ctx.shadowColor = '#00e676';
     ctx.shadowBlur = 22;
@@ -861,18 +1437,17 @@ function renderVerdantTiara(ctx, x, y, t) {
     ctx.closePath();
     ctx.fill();
 
-    // Diamond Starburst Sparkle Glint
     const sparkAngle = t * 1.8 + idx;
     const sparkScale = Math.sin(t * 4 + idx);
-    if (sparkScale > 0.3) {
+    if (sparkScale > 0.2 || isMouthOpen) {
       ctx.fillStyle = '#ffffff';
       ctx.shadowColor = '#ffffff';
-      ctx.shadowBlur = 14;
+      ctx.shadowBlur = 16;
       ctx.save();
       ctx.translate(g.x, g.y);
       ctx.rotate(sparkAngle);
-      ctx.fillRect(-1.5, -10, 3, 20);
-      ctx.fillRect(-10, -1.5, 20, 3);
+      ctx.fillRect(-1.5 * scale, -10 * scale, 3 * scale, 20 * scale);
+      ctx.fillRect(-10 * scale, -1.5 * scale, 20 * scale, 3 * scale);
       ctx.restore();
     }
   });

@@ -442,6 +442,52 @@ body.snapchat-mode {
   color: var(--text-muted);
 }
 
+/* Snapchat Authentic Lens Hint Capsule */
+.snap-hint-capsule {
+  position: absolute;
+  top: 18%;
+  left: 50%;
+  transform: translateX(-50%);
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  background: rgba(10, 12, 18, 0.82);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  padding: 8px 18px;
+  border-radius: var(--radius-pill);
+  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.55), 0 0 16px rgba(255, 255, 255, 0.08);
+  z-index: 65;
+  pointer-events: none;
+  animation: snapHintPulse 2s infinite ease-in-out;
+  transition: opacity 0.25s cubic-bezier(0.2, 0.8, 0.2, 1), transform 0.25s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+.snap-hint-capsule.fade-out {
+  opacity: 0;
+  transform: translate(-50%, -10px) scale(0.92);
+}
+
+.snap-hint-icon {
+  font-size: 16px;
+  line-height: 1;
+}
+
+.snap-hint-text {
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.8px;
+  text-transform: uppercase;
+  color: #ffffff;
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Inter", sans-serif;
+}
+
+@keyframes snapHintPulse {
+  0%, 100% { transform: translateX(-50%) scale(1); }
+  50% { transform: translateX(-50%) scale(1.05); }
+}
+
 /* BOTTOM CAMERA DOCK */
 .camera-dock-bottom {
   position: absolute;

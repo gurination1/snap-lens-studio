@@ -126,6 +126,18 @@
             <span>🌓</span>
             <small>Split</small>
           </button>
+
+          <!-- 3D Face Mesh Wireframe Toggle (Snapchat Developer Mode) -->
+          <button class="icon-toggle-btn" id="btn-mesh" title="Toggle 3D Face Mesh Wireframe" onclick="toggleMeshWireframe()">
+            <span>🕸️</span>
+            <small>Mesh</small>
+          </button>
+        </div>
+
+        <!-- Snapchat Authentic Lens Hint Capsule -->
+        <div id="snap-hint-capsule" class="snap-hint-capsule" style="display:none;">
+          <span id="snap-hint-icon" class="snap-hint-icon">👄</span>
+          <span id="snap-hint-text" class="snap-hint-text">OPEN YOUR MOUTH</span>
         </div>
 
         <!-- Bottom Snapchat Shutter & Lens Carousel Dock -->
@@ -437,6 +449,8 @@
 
   <!-- JSZip for 100% Client-Side Offline Lens Unpacking -->
   <script src="/static/js/jszip.min.js"></script>
+  <!-- Google MediaPipe FaceMesh (Local Assets for 468 3D Landmark Tracking) -->
+  <script src="/static/vendor/mediapipe/face_mesh.js"></script>
   <!-- Main Studio JavaScript -->
   <script src="/static/js/studio.js"></script>
 
