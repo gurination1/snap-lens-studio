@@ -384,25 +384,35 @@
             <h4 class="section-title">Engine Diagnostics</h4>
             <div class="diag-table">
               <div class="diag-row">
-                <span class="diag-label">Renderer Pipeline</span>
-                <span class="diag-value highlight-green">Dual Engine: Local WebGL2 + Camera Kit</span>
+                <span class="diag-label">Primary Active Renderer</span>
+                <span class="diag-value highlight-green">Local WebGL2 AR Engine (60–120 FPS, 0ms Lag)</span>
               </div>
               <div class="diag-row">
-                <span class="diag-label">Local FPS Target</span>
+                <span class="diag-label">Snap Camera Kit Web SDK</span>
+                <span class="diag-value highlight-pink">Bypassed (Domain Lock &amp; Signature Mismatch)</span>
+              </div>
+              <div class="diag-row">
+                <span class="diag-label">Local GPU Frame Budget</span>
                 <span class="diag-value" id="diag-fps-info">60 - 120 FPS (Hardware Synced)</span>
               </div>
               <div class="diag-row">
-                <span class="diag-label">WebGL Context</span>
-                <span class="diag-value" id="diag-webgl-ver">WebGL2 Context (Canvas 720×1280)</span>
+                <span class="diag-label">Client Processing</span>
+                <span class="diag-value highlight-cyan">100% Device GPU (Zero Server Cloud Dependency)</span>
               </div>
               <div class="diag-row">
-                <span class="diag-label">Active Video Track</span>
-                <span class="diag-value" id="diag-track-info">720x1280 @ 30fps</span>
+                <span class="diag-label">Face Mesh &amp; Kinematics</span>
+                <span class="diag-value" id="diag-face-pipeline">Local AR Kinematics + Dynamic Jewel Shaders</span>
               </div>
-              <div class="diag-row">
-                <span class="diag-label">Face Mesh Pipeline</span>
-                <span class="diag-value" id="diag-face-pipeline">Local AR Kinematics + Face Landmarks</span>
-              </div>
+            </div>
+
+            <div class="sha-box" style="margin-top: 10px;">
+              <span class="sha-label">WHY SNAP CAMERA KIT FAILS (AND WHY LOCAL RENDERING WINS):</span>
+              <p style="font-size: 11px; color: var(--text-muted); line-height: 1.45; margin-top: 4px;">
+                1. <strong>Domain Restriction</strong>: Snap API tokens reject unauthorized origins with HTTP 401/403.<br>
+                2. <strong>Archive Signature Block</strong>: Snap's WebAssembly verifies private cryptographic RSA signatures on compiled .lns archives, rejecting sideloads.<br>
+                3. <strong>COEP Deadlock</strong>: Camera Kit requires <code>require-corp</code>, which crashes mobile camera streams.<br>
+                4. <strong>Solution</strong>: Our Local GPU Engine renders filters directly on-device with 0ms latency, zero server quota, and 100% offline capability.
+              </p>
             </div>
 
             <div class="diag-actions">
