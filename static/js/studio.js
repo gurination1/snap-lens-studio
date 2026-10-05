@@ -20,6 +20,11 @@ let customMediaType = null;
 const sideloadedLenses = new Map();
 let loadedLensesList = [];
 
+// Camera Kit Server Config State
+let serverLensGroupId = "6d4c3a49-b090-45b2-b2f7-720e78e9f7fd";
+let serverApiToken = "";
+let serverStagingToken = "";
+
 // Local AR Engine State
 let localRenderLoopId = null;
 let localFaceSimTime = 0;
@@ -109,8 +114,27 @@ document.addEventListener('DOMContentLoaded', async () => {
   await fetchLenses();
   loadSnapsGallery();
 
-  // 3. Local WebGL Engine active (Camera Kit disabled to prevent context loss)
-  // initCameraKitAsync();
+  // 3. Fetch server Camera Kit configuration and restore inputs
+  try {
+    const cfgRes = await fetch('/api/config');
+    if (cfgRes.ok) {
+      const cfg = await cfgRes.json();
+      if (cfg.lens_group_id) serverLensGroupId = cfg.lens_group_id;
+      if (cfg.api_token) serverApiToken = cfg.api_token;
+      if (cfg.staging_api_token) serverStagingToken = cfg.staging_api_token;
+    }
+  } catch (err) {
+    console.warn('[Config Warning] Could not fetch /api/config:', err);
+  }
+
+  try {
+    const savedGroupId = localStorage.getItem('ck_lens_group_id') || serverLensGroupId || DEFAULT_LENS_GROUP_ID;
+    const savedToken = localStorage.getItem('ck_api_token_override');
+    const groupInput = document.getElementById('ck-group-id-input');
+    const tokenInput = document.getElementById('ck-api-token-input');
+    if (groupInput) groupInput.value = savedGroupId;
+    if (tokenInput && savedToken) tokenInput.value = savedToken;
+  } catch (_) {}
 });
 
 // PWA Service Worker & Install Prompt
@@ -222,22 +246,23 @@ function renderLensesList() {
     item.onclick = () => selectLens(lens.id);
 
     const iconSrc = lens.icon_url || '/static/samples/abyssal_crown_icon.png';
-    const sizeMb = lens.size_bytes ? (lens.size_bytes / (1024 * 1024)).toFixed(2) + ' MB' : 'Built-in';
-    const tag = lens.is_sample ? 'Official' : 'Custom';
+    const sizeMb = lens.size_bytes ? (lens.size_bytes / (1024 * 1024)).toFixed(2) + ' MB' : (lens.is_camerakit_cloud ? 'Snap Cloud' : 'Built-in');
+    const tag = lens.is_camerakit_cloud ? '⚡ Snap Cloud' : (lens.is_sample ? 'Official' : 'Custom');
     const meshCount = lens.inspection?.counts?.meshes || 0;
     const texCount = lens.inspection?.counts?.textures || 0;
+    const metaDesc = lens.is_camerakit_cloud ? `Group: ${lens.groupId?.slice(0, 8)}... • Snap Camera Kit WebGL2` : `${sizeMb} • ${meshCount} Meshes • ${texCount} Textures`;
 
     item.innerHTML = `
       <div class="lens-card-info">
         <img class="lens-card-icon" src="${iconSrc}" alt="${lens.name}">
         <div class="lens-card-details">
           <span class="lens-card-name">${lens.name}</span>
-          <span class="lens-card-meta">${sizeMb} • ${meshCount} Meshes • ${texCount} Textures</span>
+          <span class="lens-card-meta">${metaDesc}</span>
         </div>
       </div>
       <div class="lens-card-actions">
-        <span class="lens-tag-pill">${tag}</span>
-        ${!lens.is_sample ? `<button class="btn-del-lens" title="Delete lens" onclick="deleteLens(event, '${lens.id}')">🗑</button>` : ''}
+        <span class="lens-tag-pill ${lens.is_camerakit_cloud ? 'pill-cloud' : ''}">${tag}</span>
+        ${(!lens.is_sample && !lens.is_camerakit_cloud) ? `<button class="btn-del-lens" title="Delete lens" onclick="deleteLens(event, '${lens.id}')">🗑</button>` : ''}
       </div>
     `;
     container.appendChild(item);
@@ -265,12 +290,15 @@ function renderCarousel() {
 
   loadedLensesList.forEach(lens => {
     const pill = document.createElement('div');
-    pill.className = `carousel-lens-item ${lens.id === ckCurrentLensId ? 'active' : ''}`;
+    pill.className = `carousel-lens-item ${lens.id === ckCurrentLensId ? 'active' : ''} ${lens.is_camerakit_cloud ? 'carousel-cloud-lens' : ''}`;
     pill.title = lens.name;
     pill.onclick = () => selectLens(lens.id);
 
     const iconSrc = lens.icon_url || '/static/samples/abyssal_crown_icon.png';
-    pill.innerHTML = `<img class="carousel-lens-img" src="${iconSrc}" alt="${lens.name}">`;
+    pill.innerHTML = `
+      <img class="carousel-lens-img" src="${iconSrc}" alt="${lens.name}">
+      ${lens.is_camerakit_cloud ? '<span class="carousel-cloud-badge">⚡</span>' : ''}
+    `;
     carousel.appendChild(pill);
   });
 }
@@ -288,18 +316,41 @@ async function selectLens(lensId) {
     updateHudLens(lensMeta);
   }
 
-  // Trigger Local AR Re-sync & Snapchat Hint
-  resetLocalArParticles();
-  if (snapTracker) {
-    snapTracker.showHint('lens_hint_open_your_mouth', 4.5);
-  }
+  const localCanvas = document.getElementById('ck-canvas');
+  const ckCanvas = document.getElementById('ck-camerakit-canvas');
 
-  // Also apply to Camera Kit if active
-  if (ckSession && ckInstance) {
+  // Handle Camera Kit Cloud Lens
+  if (lensMeta && lensMeta.is_camerakit_cloud && lensMeta.camerakit_lens_obj) {
+    if (localCanvas) localCanvas.style.display = 'none';
+    if (ckCanvas) ckCanvas.style.display = 'block';
+
     try {
-      const lens = await ckInstance.lensRepository.loadLens(lensId, "lens-sideload-extension-group");
-      await ckSession.applyLens(lens);
-    } catch (_) {}
+      const session = await ensureCameraKitSession();
+      if (session) {
+        await session.applyLens(lensMeta.camerakit_lens_obj);
+        console.log('[Camera Kit] Applied cloud lens:', lensMeta.name);
+      }
+    } catch (e) {
+      console.warn('[Camera Kit Cloud Apply Error]', e);
+    }
+  } else {
+    // Switch to Local AR Canvas
+    if (ckCanvas) ckCanvas.style.display = 'none';
+    if (localCanvas) localCanvas.style.display = 'block';
+
+    // Trigger Local AR Re-sync & Snapchat Hint
+    resetLocalArParticles();
+    if (snapTracker) {
+      snapTracker.showHint('lens_hint_open_your_mouth', 4.5);
+    }
+
+    // Also apply to Camera Kit if active
+    if (ckSession && ckInstance) {
+      try {
+        const lens = await ckInstance.lensRepository.loadLens(lensId, "lens-sideload-extension-group");
+        await ckSession.applyLens(lens);
+      } catch (_) {}
+    }
   }
 }
 
@@ -310,7 +361,7 @@ function updateHudLens(lensMeta) {
 
   if (nameEl) nameEl.textContent = lensMeta.name;
   if (iconEl && lensMeta.icon_url) iconEl.src = lensMeta.icon_url;
-  if (statusEl) statusEl.textContent = 'Active (60 FPS)';
+  if (statusEl) statusEl.textContent = lensMeta.is_camerakit_cloud ? 'Snap Cloud (WebGL2)' : 'Local AR (60 FPS)';
 }
 
 // Camera Flip (Front ↔ Rear)
@@ -1737,9 +1788,17 @@ function setupShutter() {
   window.addEventListener('touchend', onPointerUp, { passive: false });
 }
 
+function getActiveCanvas() {
+  const ckCanvas = document.getElementById('ck-camerakit-canvas');
+  if (ckCanvas && ckCanvas.style.display !== 'none') {
+    return ckCanvas;
+  }
+  return document.getElementById('ck-canvas');
+}
+
 // 1. Capture Photo Snap
 async function capturePhotoSnap() {
-  const canvas = document.getElementById('ck-canvas');
+  const canvas = getActiveCanvas();
   const flash = document.getElementById('camera-flash');
 
   if (flash) {
@@ -1779,7 +1838,7 @@ async function startVideoRecording() {
   const shutterBtn = document.getElementById('snap-shutter');
   const svgBar = document.getElementById('record-svg-bar');
   const hintEl = document.getElementById('shutter-hint');
-  const canvas = document.getElementById('ck-canvas');
+  const canvas = getActiveCanvas();
 
   if (shutterBtn) shutterBtn.classList.add('recording');
   if (hintEl) hintEl.textContent = 'Recording Video Snap...';
@@ -2213,7 +2272,7 @@ async function initCameraKitAsync() {
       ConcatInjectable 
     } = await import('/static/js/camera-kit.bundle.js');
 
-    const token = "eyJhbGciOiJIUzI1NiIsImtpZCI6IkNhbnZhc1MyU0hNQUNQcm9kIiwidHlwIjoiSldUIn0.eyJhdWQiOiJjYW52YXMtY2FudmFzYXBpIiwiaXNzIjoiY2FudmFzLXMyc3Rva2VuIiwibmJmIjoxNzMyNjMzNDE5LCJzdWIiOiIwMjdmNjZkZi0wOTQyLTQ3ZWUtODUxMi1lNGMyZTQ2MWRkMzR-UFJPRFVDVElPTn43N2Y5Y2ZlYi1lNWUxLTRhZTgtYWU5ZS01MjQ1NGYwM2JiYTYifQ.niwcW4CuvpHEhciugcvxa2S5vQBsehTktDu_k8galYU";
+    const token = serverApiToken || DEFAULT_API_TOKEN;
 
     const customLensSource = {
       isGroupOwner(groupId) {
@@ -2248,6 +2307,242 @@ async function initCameraKitAsync() {
     if (statusBadge) statusBadge.textContent = 'Local AR Active (60 FPS)';
   }
 }
+
+const DEFAULT_LENS_GROUP_ID = "6d4c3a49-b090-45b2-b2f7-720e78e9f7fd";
+const DEFAULT_API_TOKEN = "eyJhbGciOiJIUzI1NiIsImtpZCI6IkNhbnZhc1MyU0hNQUNQcm9kIiwidHlwIjoiSldUIn0.eyJhdWQiOiJjYW52YXMtY2FudmFzYXBpIiwiaXNzIjoiY2FudmFzLXMyc3Rva2VuIiwibmJmIjoxNzkxMjE3MjU5LCJzdWIiOiJhODM3NzNlNi1lZTgwLTQ2MTMtYmI0ZC1kZWRhMDJiMWVmODd-UFJPRFVDVElPTn40Mjk1ODcxOC0yNTIxLTRjMTctODAxZC03Y2FlMWMyY2IyNTkifQ.mNbYo1anah5FrGBwF5ciT4SWU4FxCJELEvcI1jwq6sQ";
+const DEFAULT_STAGING_TOKEN = "eyJhbGciOiJIUzI1NiIsImtpZCI6IkNhbnZhc1MyU0hNQUNQcm9kIiwidHlwIjoiSldUIn0.eyJhdWQiOiJjYW52YXMtY2FudmFzYXBpIiwiaXNzIjoiY2FudmFzLXMyc3Rva2VuIiwibmJmIjoxNzkxMjE3MjU5LCJzdWIiOiJhODM3NzNlNi1lZTgwLTQ2MTMtYmI0ZC1kZWRhMDJiMWVmODd-U1RBR0lOR340OGM0NjgyZS00NTkyLTRiMDQtYjMyOC1kNDI4NTg1MDZlMTMifQ.LqzSwK_sfExKloe_v2TJKr0E2bjPPUe4dwuQlPCAOew";
+
+window.switchTokenEnv = function(mode) {
+  const tokenInput = document.getElementById('ck-api-token-input');
+  if (!tokenInput) return;
+  if (mode === 'prod') {
+    tokenInput.value = serverApiToken || DEFAULT_API_TOKEN;
+    tokenInput.placeholder = "Production Token Active";
+  } else if (mode === 'staging') {
+    tokenInput.value = serverStagingToken || DEFAULT_STAGING_TOKEN;
+    tokenInput.placeholder = "Staging Token Active";
+  } else {
+    tokenInput.value = "";
+    tokenInput.placeholder = "Paste custom creator API token here...";
+  }
+};
+
+// Ensure Camera Kit Session on Native WebGL Canvas
+async function ensureCameraKitSession() {
+  if (!ckInstance) {
+    await initCameraKitAsync();
+  }
+  if (!ckInstance) return null;
+
+  if (!ckSession) {
+    const ckCanvas = document.getElementById('ck-camerakit-canvas');
+    if (!ckCanvas) return null;
+
+    try {
+      ckSession = await ckInstance.createSession({ liveRenderTarget: ckCanvas });
+      await updateCameraKitSessionSource();
+      console.log('[Camera Kit] Native WebGL session initialized!');
+    } catch (err) {
+      console.error('[Camera Kit Session Init Error]', err);
+      return null;
+    }
+  }
+  return ckSession;
+}
+
+// Update Active Camera/Video Stream in Camera Kit Session
+async function updateCameraKitSessionSource() {
+  if (!ckSession) return;
+  try {
+    const { createMediaStreamSource, createVideoSource } = await import('/static/js/camera-kit.bundle.js');
+    if (ckActiveSource === 'webcam') {
+      const rawWebcam = document.getElementById('ck-webcam-raw');
+      if (rawWebcam && rawWebcam.srcObject) {
+        const source = createMediaStreamSource(rawWebcam.srcObject);
+        await ckSession.setSource(source);
+        await ckSession.play();
+      }
+    } else {
+      const vid = document.getElementById('ck-video-input');
+      if (vid) {
+        const source = createVideoSource(vid);
+        await ckSession.setSource(source);
+        await ckSession.play();
+      }
+    }
+  } catch (err) {
+    console.warn('[Camera Kit Source Update Warning]', err);
+  }
+}
+
+// Sync Lenses directly from Snapchat Camera Kit Lens Group
+window.syncLensGroup = async function(manualGroupId, manualToken) {
+  const groupIdInput = document.getElementById('ck-group-id-input');
+  const tokenInput = document.getElementById('ck-api-token-input');
+  const statusPill = document.getElementById('group-sync-status');
+  const consoleEl = document.getElementById('group-sync-console');
+  const syncBtn = document.getElementById('btn-sync-group');
+  const syncIcon = document.getElementById('btn-sync-icon');
+  const syncText = document.getElementById('btn-sync-text');
+
+  const groupId = (manualGroupId || (groupIdInput ? groupIdInput.value : '') || DEFAULT_LENS_GROUP_ID).trim();
+  const customToken = (manualToken || (tokenInput ? tokenInput.value : '')).trim();
+
+  if (!groupId) {
+    alert('Please enter a valid Snapchat Camera Kit Lens Group ID');
+    return;
+  }
+
+  // Persist settings in localStorage
+  try {
+    localStorage.setItem('ck_lens_group_id', groupId);
+    if (customToken) {
+      localStorage.setItem('ck_api_token_override', customToken);
+    }
+  } catch (_) {}
+
+  // UI state updates
+  if (statusPill) {
+    statusPill.className = 'group-status-pill syncing';
+    statusPill.textContent = 'Syncing...';
+  }
+  if (syncBtn) syncBtn.disabled = true;
+  if (syncIcon) syncIcon.textContent = '⏳';
+  if (syncText) syncText.textContent = 'Connecting...';
+  if (consoleEl) {
+    consoleEl.style.display = 'block';
+    consoleEl.className = 'group-sync-console';
+    consoleEl.textContent = `[Camera Kit] Initializing Snap gRPC client...\nTarget Lens Group ID: ${groupId}\nAPI Token: ${customToken ? 'Custom Override Provided' : 'Production/Configured Token'}\nQuerying Snap Lenses service (camera-kit-api.snapar.com)...`;
+  }
+
+  try {
+    const { bootstrapCameraKit } = await import('/static/js/camera-kit.bundle.js');
+    let effectiveToken = customToken || serverApiToken || DEFAULT_API_TOKEN;
+
+    // Bootstrap or re-bootstrap instance if custom token is supplied or instance missing
+    if (!ckInstance || customToken) {
+      ckInstance = await bootstrapCameraKit({ apiToken: effectiveToken });
+    }
+
+    console.log(`[Camera Kit] Calling loadLensGroups for: ${groupId}`);
+    let groupRes = await ckInstance.lensRepository.loadLensGroups([groupId]);
+
+    let lenses = groupRes.lenses || [];
+    let errors = groupRes.errors || [];
+
+    // Auto-fallback: if production failed and user didn't specify manual token, try staging token
+    if (errors.length > 0 && !customToken) {
+      const fallbackToken = serverStagingToken || DEFAULT_STAGING_TOKEN;
+      if (fallbackToken && fallbackToken !== effectiveToken) {
+        console.log('[Camera Kit] Production query failed, attempting auto-fallback to Staging Token...');
+        if (consoleEl) {
+          consoleEl.textContent += `\n[Fallback] Retrying with Staging Token...`;
+        }
+        try {
+          const stagingInstance = await bootstrapCameraKit({ apiToken: fallbackToken });
+          const stagingRes = await stagingInstance.lensRepository.loadLensGroups([groupId]);
+          if ((stagingRes.lenses || []).length > 0 || (stagingRes.errors || []).length === 0) {
+            ckInstance = stagingInstance;
+            groupRes = stagingRes;
+            lenses = groupRes.lenses || [];
+            errors = groupRes.errors || [];
+            effectiveToken = fallbackToken;
+          }
+        } catch (stageErr) {
+          console.warn('[Camera Kit Staging Fallback Failed]', stageErr);
+        }
+      }
+    }
+
+    if (errors.length > 0) {
+      const errObj = errors[0];
+      const errMsg = errObj.message || String(errObj);
+      console.warn('[Camera Kit Group Error]', errMsg);
+
+      if (statusPill) {
+        statusPill.className = 'group-status-pill error';
+        statusPill.textContent = 'Group Not Found';
+      }
+
+      if (consoleEl) {
+        consoleEl.className = 'group-sync-console is-error';
+        consoleEl.textContent = `❌ Snap Camera Kit Response:\n${errMsg}\n\n🔍 DIAGNOSTIC ROOT CAUSE:\n` +
+          `1. Cross-Organization Isolation: Lens Groups are strictly scoped to the Snap Developer Organization where they were created. If this group was created under another Snap account, paste the creator's API Token from the Camera Kit Developer Portal into 'API Token Override' above.\n\n` +
+          `2. Pending Upload / Scheduling: If the creator has not uploaded or scheduled lenses yet ("mai kalnu ehde ander sarre lenses upload kardunga"), Snap returns '[5] group not found' until active lenses are published in the Lens Scheduler.`;
+      }
+      return;
+    }
+
+    if (lenses.length === 0) {
+      if (statusPill) {
+        statusPill.className = 'group-status-pill syncing';
+        statusPill.textContent = '0 Lenses Found';
+      }
+      if (consoleEl) {
+        consoleEl.className = 'group-sync-console';
+        consoleEl.textContent = `ℹ️ Lens Group '${groupId}' found on Snap server, but contains 0 active lenses.\nOnce lenses are published in the Lens Scheduler, re-sync to load them.`;
+      }
+      return;
+    }
+
+    // Success! Lenses found
+    if (statusPill) {
+      statusPill.className = 'group-status-pill success';
+      statusPill.textContent = `${lenses.length} Lenses Active`;
+    }
+
+    let newlyAdded = 0;
+    lenses.forEach(l => {
+      if (!loadedLensesList.some(existing => existing.id === l.id)) {
+        const cloudEntry = {
+          id: l.id,
+          name: l.name || "Snap Lens",
+          icon_url: l.iconUrl || "/static/samples/abyssal_crown_icon.png",
+          is_sample: false,
+          is_camerakit_cloud: true,
+          camerakit_lens_obj: l,
+          groupId: groupId,
+          size_bytes: null,
+          created_at: new Date().toISOString(),
+          description: `Live cloud lens loaded from Lens Group ${groupId} (Snap Camera Kit WebGL2).`,
+          inspection: {
+            counts: { meshes: 1, textures: 1, shaders: 1, scripts: 1, audio: 0, others: 0 }
+          }
+        };
+        loadedLensesList.unshift(cloudEntry);
+        newlyAdded++;
+      }
+    });
+
+    renderLensesList();
+    renderCarousel();
+
+    if (consoleEl) {
+      consoleEl.className = 'group-sync-console is-success';
+      consoleEl.textContent = `✅ Successfully connected to Snapchat Camera Kit!\nSynced ${lenses.length} lenses from Group '${groupId}' (${newlyAdded} new).\nLenses added to bottom carousel & ready for live camera testing!`;
+    }
+
+    // Select and apply the first cloud lens immediately
+    if (lenses.length > 0) {
+      selectLens(lenses[0].id);
+    }
+
+  } catch (err) {
+    console.error('[syncLensGroup Exception]', err);
+    if (statusPill) {
+      statusPill.className = 'group-status-pill error';
+      statusPill.textContent = 'Sync Failed';
+    }
+    if (consoleEl) {
+      consoleEl.className = 'group-sync-console is-error';
+      consoleEl.textContent = `⚠️ Error during sync:\n${err.message || String(err)}`;
+    }
+  } finally {
+    if (syncBtn) syncBtn.disabled = false;
+    if (syncIcon) syncIcon.textContent = '🔄';
+    if (syncText) syncText.textContent = 'Sync Group';
+  }
+};
 
 // FPS Monitor
 function startFpsMonitor() {

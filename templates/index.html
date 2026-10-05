@@ -83,6 +83,7 @@
         <!-- Live Camera & AR WebGL Surface -->
         <div class="canvas-wrapper" id="canvas-wrapper">
           <canvas id="ck-canvas" width="720" height="1280"></canvas>
+          <canvas id="ck-camerakit-canvas" width="720" height="1280" style="display:none;"></canvas>
 
           <!-- Video & Raw Elements for Camera Ingestion -->
           <video id="ck-video-input" playsinline muted loop crossOrigin="anonymous" style="display:none;"></video>
@@ -237,6 +238,48 @@
               </div>
               <div class="progress-text" id="upload-progress-text">Processing bundle locally...</div>
             </div>
+          </div>
+
+          <!-- Camera Kit Lens Group Sync Card -->
+          <div class="lens-group-card">
+            <div class="group-card-header">
+              <div class="group-card-title-box">
+                <span class="group-badge-icon">⚡</span>
+                <div>
+                  <h4 class="group-title">Camera Kit • Lens Group Sync</h4>
+                  <p class="group-sub">Fetch live lenses directly from Snap Camera Kit Developer Portal</p>
+                </div>
+              </div>
+              <span class="group-status-pill" id="group-sync-status">Ready</span>
+            </div>
+
+            <div class="group-input-box">
+              <label for="ck-group-id-input" class="group-field-label">Lens Group ID</label>
+              <div class="group-input-row">
+                <input type="text" id="ck-group-id-input" class="group-input" placeholder="e.g. 6d4c3a49-b090-45b2-b2f7-720e78e9f7fd" value="6d4c3a49-b090-45b2-b2f7-720e78e9f7fd">
+                <button type="button" class="btn btn-primary btn-sync" id="btn-sync-group" onclick="syncLensGroup()">
+                  <span id="btn-sync-icon">🔄</span> <span id="btn-sync-text">Sync Group</span>
+                </button>
+              </div>
+            </div>
+
+            <details class="group-advanced-accordion" id="group-advanced-accordion">
+              <summary class="group-accordion-summary">⚙️ Advanced: API Token &amp; Environment</summary>
+              <div class="group-advanced-body">
+                <label for="ck-token-env-select" class="group-field-label">Token Environment:</label>
+                <select id="ck-token-env-select" class="group-input" style="margin-bottom:8px; cursor:pointer;" onchange="switchTokenEnv(this.value)">
+                  <option value="prod" selected>Production API Token (Active)</option>
+                  <option value="staging">Staging API Token</option>
+                  <option value="custom">Custom Token Override</option>
+                </select>
+                <label for="ck-api-token-input" class="group-field-label">Camera Kit API Token (JWT):</label>
+                <input type="password" id="ck-api-token-input" class="group-input" placeholder="Managed via Railway environment">
+                <small class="group-input-help">Tokens are managed via Railway environment variables. Auto-fallback between Production and Staging is enabled.</small>
+              </div>
+            </details>
+
+            <!-- Live Sync Diagnostic Console -->
+            <div id="group-sync-console" class="group-sync-console" style="display:none;"></div>
           </div>
 
           <!-- Input Source Switcher in Drawer -->
