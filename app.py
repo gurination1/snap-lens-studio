@@ -368,6 +368,62 @@ def upload_lens():
     })
 
 
+@app.route("/api/fetch_lens_url", methods=["POST"])
+def fetch_lens_url():
+    """Fetch remote .lns or .zip lens bundle from a public URL."""
+    data = request.get_json(silent=True) or request.form
+    target_url = (data.get("url") or "").strip()
+    if not target_url:
+        return jsonify({"success": False, "error": "No URL provided"}), 400
+
+    import urllib.request
+    try:
+        req = urllib.request.Request(
+            target_url,
+            headers={"User-Agent": "SnapARStudio/1.0 Mozilla/5.0"}
+        )
+        lens_id = str(uuid.uuid4())
+        filename = f"{lens_id}_downloaded.lns"
+        dest_path = os.path.join(UPLOADS_DIR, filename)
+        with urllib.request.urlopen(req, timeout=30) as resp, open(dest_path, "wb") as out_f:
+            out_f.write(resp.read())
+
+        clean_name = os.path.splitext(os.path.basename(target_url.split("?")[0]))[0] or "Imported Lens"
+        clean_name = clean_name.replace("_", " ").replace("-", " ").title()
+
+        inspection = inspect_lens_bundle(dest_path)
+        icon_url = None
+        if inspection.get("icon_filename"):
+            icon_url = f"/uploads/{inspection['icon_filename']}"
+
+        lens_entry = {
+            "id": lens_id,
+            "name": clean_name,
+            "filename": filename,
+            "url": f"/uploads/{filename}",
+            "icon_url": icon_url,
+            "sha256": inspection["sha256"],
+            "size_bytes": inspection["size_bytes"],
+            "is_sample": False,
+            "created_at": datetime.now().isoformat(),
+            "activation_camera": inspection.get("activation_camera", "front"),
+            "description": f"Imported lens bundle ({inspection['counts']['meshes']} meshes, {inspection['counts']['textures']} textures).",
+            "inspection": inspection
+        }
+
+        registry = load_registry()
+        registry.insert(0, lens_entry)
+        save_registry(registry)
+
+        return jsonify({
+            "success": True,
+            "message": f"Lens '{clean_name}' successfully imported and ready!",
+            "lens": lens_entry
+        })
+    except Exception as e:
+        return jsonify({"success": False, "error": f"Failed to download lens: {str(e)}"}), 500
+
+
 @app.route("/api/lenses/<lens_id>", methods=["DELETE"])
 def delete_lens(lens_id):
     """Delete an uploaded lens."""

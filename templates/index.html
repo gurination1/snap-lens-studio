@@ -89,7 +89,7 @@
           <video id="ck-video-input" playsinline muted loop crossOrigin="anonymous" style="display:none;"></video>
           <video id="ck-webcam-raw" playsinline muted autoplay style="display:none;"></video>
           <canvas id="ck-crop-canvas" width="720" height="1280" style="display:none;"></canvas>
-          <canvas id="ck-three-canvas" width="720" height="1280" style="display:none;"></canvas>
+          <canvas id="ck-three-canvas" width="720" height="1280" class="three-overlay-canvas"></canvas>
 
           <!-- Interactive Split Comparison View -->
           <div id="split-overlay-container" class="split-view-container" style="display:none;">
@@ -238,6 +238,26 @@
               </div>
               <div class="progress-text" id="upload-progress-text">Processing bundle locally...</div>
             </div>
+          </div>
+
+          <!-- Direct URL / Public Lens Sideload Card -->
+          <div class="lens-group-card" style="margin-bottom: 16px; padding: 14px;">
+            <div class="group-card-header" style="margin-bottom: 10px;">
+              <div class="group-card-title-box">
+                <span class="group-badge-icon">🔗</span>
+                <div>
+                  <h4 class="group-title">Sideload Lens from URL</h4>
+                  <p class="group-sub">Paste public .lns, .zip, or .glb URL to fetch &amp; test directly on camera</p>
+                </div>
+              </div>
+            </div>
+            <div class="group-input-row">
+              <input type="url" id="direct-lens-url-input" class="group-input" placeholder="https://domain.com/path/lens.lns" style="flex:1;">
+              <button type="button" class="btn btn-primary btn-sync" id="btn-load-url" onclick="sideloadFromUrl()">
+                <span id="btn-load-url-icon">⬇</span> <span id="btn-load-url-text">Load URL</span>
+              </button>
+            </div>
+            <div id="url-sideload-status" style="display:none; font-size: 0.75rem; margin-top: 8px; color: #00f2fe;"></div>
           </div>
 
           <!-- Camera Kit Lens Group Sync Card -->
@@ -496,6 +516,7 @@
   <!-- Three.js & 3D WebGL Runtime -->
   <script src="/static/vendor/three/three.min.js"></script>
   <script src="/static/vendor/three/OBJLoader.js"></script>
+  <script src="/static/vendor/three/GLTFLoader.js"></script>
   <!-- Google MediaPipe FaceMesh (Local Assets for 468 3D Landmark Tracking) -->
   <script src="/static/vendor/mediapipe/face_mesh.js"></script>
   <!-- Main Studio JavaScript -->

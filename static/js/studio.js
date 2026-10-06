@@ -38,6 +38,7 @@ let threeCamera = null;
 let threeCanvas = null;
 let abyssalCrownGroup = null;
 let abyssalCrownMaterial = null;
+let custom3DGroup = null;
 let is3DModelLoaded = false;
 let isLoading3DModel = false;
 
@@ -338,6 +339,15 @@ async function selectLens(lensId) {
     if (ckCanvas) ckCanvas.style.display = 'none';
     if (localCanvas) localCanvas.style.display = 'block';
 
+    // Check if custom lens has 3D model attached
+    if (lensMeta && lensMeta.modelUrl) {
+      await loadCustomLens3DModel(lensMeta.modelUrl, lensMeta.modelType, lensMeta.textureUrl);
+    } else if (custom3DGroup) {
+      while (custom3DGroup.children.length > 0) {
+        custom3DGroup.remove(custom3DGroup.children[0]);
+      }
+    }
+
     // Trigger Local AR Re-sync & Snapchat Hint
     resetLocalArParticles();
     if (snapTracker) {
@@ -538,6 +548,47 @@ function setupSplitSlider() {
 let mouthVfxParticles = [];
 let snapTracker = null;
 
+// Adaptive 1-Euro Low-Pass Filter with Deadband for Butter-Smooth Zero-Jitter AR
+class AdaptiveFilter {
+  constructor(minCutoff = 1.2, beta = 0.08, deadband = 0.75) {
+    this.xPrev = null;
+    this.dxPrev = 0;
+    this.minCutoff = minCutoff;
+    this.beta = beta;
+    this.deadband = deadband;
+  }
+
+  filter(val, dt = 0.016) {
+    if (this.xPrev === null || !Number.isFinite(this.xPrev)) {
+      this.xPrev = val;
+      return val;
+    }
+
+    const diff = val - this.xPrev;
+    // Deadband: If motion is micro-tremor sensor noise (< deadband), suppress completely
+    if (Math.abs(diff) < this.deadband) {
+      this.xPrev += diff * 0.03; // Gentle slow creep to avoid position drift
+      return this.xPrev;
+    }
+
+    // Velocity estimation
+    const dx = diff / Math.max(dt, 0.001);
+    this.dxPrev = 0.15 * dx + 0.85 * this.dxPrev;
+
+    // Adaptive cutoff frequency: fast motion = high cutoff (no lag); slow = low cutoff (rock solid)
+    const cutoff = this.minCutoff + this.beta * Math.abs(this.dxPrev);
+    const alpha = Math.min(0.65, Math.max(0.04, (2 * Math.PI * cutoff * dt) / (1 + 2 * Math.PI * cutoff * dt)));
+
+    this.xPrev += diff * alpha;
+    return this.xPrev;
+  }
+
+  reset() {
+    this.xPrev = null;
+    this.dxPrev = 0;
+  }
+}
+
 class SnapchatFaceEngine {
   constructor() {
     this.isFaceMeshReady = false;
@@ -546,6 +597,37 @@ class SnapchatFaceEngine {
     this.lastDetectedTime = 0;
     this.isFaceFound = false;
     this.showWireframe = false;
+
+    // Performance Downscale & Inference Throttling
+    this.trackingCanvas = null;
+    this.trackingCtx = null;
+    this.lastFrameSendTime = 0;
+    this.minInferenceIntervalMs = 24; // ~40 FPS inference cap to preserve 60-120 FPS render thread
+
+    // Precision 1-Euro Smoothers (Zero micro-jitter on face & 3D models)
+    this.smoothForeheadX = new AdaptiveFilter(1.2, 0.10, 0.8);
+    this.smoothForeheadY = new AdaptiveFilter(1.2, 0.10, 0.8);
+    this.smoothHeadCenterX = new AdaptiveFilter(1.2, 0.10, 0.8);
+    this.smoothHeadCenterY = new AdaptiveFilter(1.2, 0.10, 0.8);
+    this.smoothLeftEyeX = new AdaptiveFilter(1.2, 0.10, 0.8);
+    this.smoothLeftEyeY = new AdaptiveFilter(1.2, 0.10, 0.8);
+    this.smoothRightEyeX = new AdaptiveFilter(1.2, 0.10, 0.8);
+    this.smoothRightEyeY = new AdaptiveFilter(1.2, 0.10, 0.8);
+    this.smoothNoseX = new AdaptiveFilter(1.2, 0.10, 0.8);
+    this.smoothNoseY = new AdaptiveFilter(1.2, 0.10, 0.8);
+    this.smoothMouthX = new AdaptiveFilter(1.2, 0.10, 0.8);
+    this.smoothMouthY = new AdaptiveFilter(1.2, 0.10, 0.8);
+    this.smoothLeftCheekX = new AdaptiveFilter(1.2, 0.10, 0.8);
+    this.smoothLeftCheekY = new AdaptiveFilter(1.2, 0.10, 0.8);
+    this.smoothRightCheekX = new AdaptiveFilter(1.2, 0.10, 0.8);
+    this.smoothRightCheekY = new AdaptiveFilter(1.2, 0.10, 0.8);
+    this.smoothChinX = new AdaptiveFilter(1.2, 0.10, 0.8);
+    this.smoothChinY = new AdaptiveFilter(1.2, 0.10, 0.8);
+    this.smoothRoll = new AdaptiveFilter(0.8, 0.08, 0.015);
+    this.smoothYaw = new AdaptiveFilter(1.0, 0.10, 0.02);
+    this.smoothPitch = new AdaptiveFilter(1.0, 0.10, 0.02);
+    this.smoothScale = new AdaptiveFilter(0.35, 0.03, 0.012); // Heavy damping stops scale pumping!
+    this.smoothMouthRatio = new AdaptiveFilter(2.0, 0.20, 0.015);
 
     // Active Hint State
     this.currentHint = null;
@@ -659,9 +741,21 @@ class SnapchatFaceEngine {
 
   async sendFrame(imageSource) {
     if (!this.isFaceMeshReady || this.isProcessing || !imageSource) return;
+    const now = performance.now();
+    if (now - this.lastFrameSendTime < this.minInferenceIntervalMs) return;
+
+    this.lastFrameSendTime = now;
     this.isProcessing = true;
+
     try {
-      await this.faceMesh.send({ image: imageSource });
+      if (!this.trackingCanvas) {
+        this.trackingCanvas = document.createElement('canvas');
+        this.trackingCanvas.width = 360;
+        this.trackingCanvas.height = 640;
+        this.trackingCtx = this.trackingCanvas.getContext('2d', { willReadFrequently: true });
+      }
+      this.trackingCtx.drawImage(imageSource, 0, 0, 360, 640);
+      await this.faceMesh.send({ image: this.trackingCanvas });
     } catch (err) {
       console.warn('[FaceEngine sendFrame warning]', err);
     } finally {
@@ -788,61 +882,69 @@ class SnapchatFaceEngine {
     }
   }
 
-  // Smooth interpolation every render frame (120 FPS capable)
+  // Smooth interpolation every render frame (60-120 FPS capable, zero jitter)
   updateSmoothedState() {
-    const lerp = (a, b, factor) => a + (b - a) * factor;
-    const lerpPt = (p1, p2, factor) => ({
-      x: lerp(p1.x, p2.x, factor),
-      y: lerp(p1.y, p2.y, factor),
-      z: lerp(p1.z || 0, p2.z || 0, factor)
-    });
+    const dt = 0.016;
+    const pv = this.publicVars;
+    const tg = this.target;
 
     // If face not detected recently, gently float to center
     if (!this.isFaceFound) {
       const t = performance.now() * 0.0015;
-      this.target.foreheadPosition2D = { x: 360 + Math.sin(t) * 12, y: 350 + Math.cos(t * 1.3) * 8 };
-      this.target.headCenterPosition2D = { x: 360, y: 440 };
-      this.target.leftEyePosition2D = { x: 295, y: 460 };
-      this.target.rightEyePosition2D = { x: 425, y: 460 };
-      this.target.nosePosition2D = { x: 360, y: 530 };
-      this.target.mouthPosition2D = { x: 360, y: 650 };
-      this.target.leftCheekPosition2D = { x: 220, y: 560 };
-      this.target.rightCheekPosition2D = { x: 500, y: 560 };
-      this.target.chinPosition2D = { x: 360, y: 780 };
-      this.target.headAngle = Math.sin(t) * 2;
-      this.target.headAngleRad = (Math.sin(t) * 2) * Math.PI / 180;
-      this.target.headYaw = Math.sin(t * 0.8) * 0.08;
-      this.target.headPitch = 0;
-      this.target.scaleFactor = 1.0;
-      this.target.mouthOpenRatio = 0;
-      this.target.isMouthOpen = false;
+      tg.foreheadPosition2D = { x: 360 + Math.sin(t) * 12, y: 350 + Math.cos(t * 1.3) * 8 };
+      tg.headCenterPosition2D = { x: 360, y: 440 };
+      tg.leftEyePosition2D = { x: 295, y: 460 };
+      tg.rightEyePosition2D = { x: 425, y: 460 };
+      tg.nosePosition2D = { x: 360, y: 530 };
+      tg.mouthPosition2D = { x: 360, y: 650 };
+      tg.leftCheekPosition2D = { x: 220, y: 560 };
+      tg.rightCheekPosition2D = { x: 500, y: 560 };
+      tg.chinPosition2D = { x: 360, y: 780 };
+      tg.headAngle = Math.sin(t) * 2;
+      tg.headAngleRad = (Math.sin(t) * 2) * Math.PI / 180;
+      tg.headYaw = Math.sin(t * 0.8) * 0.08;
+      tg.headPitch = 0;
+      tg.scaleFactor = 1.0;
+      tg.mouthOpenRatio = 0;
+      tg.isMouthOpen = false;
     }
 
-    const posFactor = 0.38;
-    const rotFactor = 0.32;
-    const scaleFactor = 0.28;
+    pv.foreheadPosition2D.x = this.smoothForeheadX.filter(tg.foreheadPosition2D.x, dt);
+    pv.foreheadPosition2D.y = this.smoothForeheadY.filter(tg.foreheadPosition2D.y, dt);
 
-    const pv = this.publicVars;
-    const tg = this.target;
+    pv.headCenterPosition2D.x = this.smoothHeadCenterX.filter(tg.headCenterPosition2D.x, dt);
+    pv.headCenterPosition2D.y = this.smoothHeadCenterY.filter(tg.headCenterPosition2D.y, dt);
 
-    pv.foreheadPosition2D = lerpPt(pv.foreheadPosition2D, tg.foreheadPosition2D, posFactor);
-    pv.headCenterPosition2D = lerpPt(pv.headCenterPosition2D, tg.headCenterPosition2D, posFactor);
-    pv.leftEyePosition2D = lerpPt(pv.leftEyePosition2D, tg.leftEyePosition2D, posFactor);
-    pv.rightEyePosition2D = lerpPt(pv.rightEyePosition2D, tg.rightEyePosition2D, posFactor);
-    pv.nosePosition2D = lerpPt(pv.nosePosition2D, tg.nosePosition2D, posFactor);
-    pv.mouthPosition2D = lerpPt(pv.mouthPosition2D, tg.mouthPosition2D, posFactor);
-    pv.leftCheekPosition2D = lerpPt(pv.leftCheekPosition2D, tg.leftCheekPosition2D, posFactor);
-    pv.rightCheekPosition2D = lerpPt(pv.rightCheekPosition2D, tg.rightCheekPosition2D, posFactor);
-    pv.chinPosition2D = lerpPt(pv.chinPosition2D, tg.chinPosition2D, posFactor);
+    pv.leftEyePosition2D.x = this.smoothLeftEyeX.filter(tg.leftEyePosition2D.x, dt);
+    pv.leftEyePosition2D.y = this.smoothLeftEyeY.filter(tg.leftEyePosition2D.y, dt);
 
-    pv.headAngle = lerp(pv.headAngle, tg.headAngle, rotFactor);
-    pv.headAngleRad = lerp(pv.headAngleRad, tg.headAngleRad, rotFactor);
-    pv.headYaw = lerp(pv.headYaw, tg.headYaw, rotFactor);
-    pv.headPitch = lerp(pv.headPitch, tg.headPitch, rotFactor);
-    pv.scaleFactor = lerp(pv.scaleFactor, tg.scaleFactor, scaleFactor);
-    pv.mouthOpenRatio = lerp(pv.mouthOpenRatio, tg.mouthOpenRatio, 0.45);
-    pv.isMouthOpen = tg.isMouthOpen;
-    pv.isWideOpen = tg.isWideOpen;
+    pv.rightEyePosition2D.x = this.smoothRightEyeX.filter(tg.rightEyePosition2D.x, dt);
+    pv.rightEyePosition2D.y = this.smoothRightEyeY.filter(tg.rightEyePosition2D.y, dt);
+
+    pv.nosePosition2D.x = this.smoothNoseX.filter(tg.nosePosition2D.x, dt);
+    pv.nosePosition2D.y = this.smoothNoseY.filter(tg.nosePosition2D.y, dt);
+
+    pv.mouthPosition2D.x = this.smoothMouthX.filter(tg.mouthPosition2D.x, dt);
+    pv.mouthPosition2D.y = this.smoothMouthY.filter(tg.mouthPosition2D.y, dt);
+
+    pv.leftCheekPosition2D.x = this.smoothLeftCheekX.filter(tg.leftCheekPosition2D.x, dt);
+    pv.leftCheekPosition2D.y = this.smoothLeftCheekY.filter(tg.leftCheekPosition2D.y, dt);
+
+    pv.rightCheekPosition2D.x = this.smoothRightCheekX.filter(tg.rightCheekPosition2D.x, dt);
+    pv.rightCheekPosition2D.y = this.smoothRightCheekY.filter(tg.rightCheekPosition2D.y, dt);
+
+    pv.chinPosition2D.x = this.smoothChinX.filter(tg.chinPosition2D.x, dt);
+    pv.chinPosition2D.y = this.smoothChinY.filter(tg.chinPosition2D.y, dt);
+
+    pv.headAngleRad = this.smoothRoll.filter(tg.headAngleRad, dt);
+    pv.headAngle = pv.headAngleRad * (180 / Math.PI);
+    pv.headYaw = this.smoothYaw.filter(tg.headYaw, dt);
+    pv.headPitch = this.smoothPitch.filter(tg.headPitch, dt);
+    pv.scaleFactor = this.smoothScale.filter(tg.scaleFactor, dt);
+    pv.mouthOpenRatio = this.smoothMouthRatio.filter(tg.mouthOpenRatio, dt);
+
+    pv.isMouthOpen = pv.mouthOpenRatio > 0.09;
+    pv.isWideOpen = pv.mouthOpenRatio > 0.25;
     pv.isFaceFound = this.isFaceFound;
   }
 
@@ -1015,6 +1117,10 @@ function initSnapchat3DRuntime() {
     abyssalCrownGroup = new THREE.Group();
     threeScene.add(abyssalCrownGroup);
 
+    // Root Group for Custom Uploaded 3D Models
+    custom3DGroup = new THREE.Group();
+    threeScene.add(custom3DGroup);
+
     console.log('[SnapAR 3D] WebGL Engine initialized successfully');
 
     // Trigger async OBJ model fetch
@@ -1092,6 +1198,87 @@ function loadAbyssalCrown3DModel() {
     console.error('[SnapAR 3D] Failed to load 3D crown assets:', err);
     isLoading3DModel = false;
   }
+}
+
+// Load Custom Uploaded 3D Model into Three.js
+async function loadCustomLens3DModel(url, type, textureUrl) {
+  if (!threeScene) return;
+  if (!custom3DGroup) {
+    custom3DGroup = new THREE.Group();
+    threeScene.add(custom3DGroup);
+  }
+  // Clear existing meshes
+  while (custom3DGroup.children.length > 0) {
+    custom3DGroup.remove(custom3DGroup.children[0]);
+  }
+
+  let tex = null;
+  if (textureUrl) {
+    try {
+      tex = new THREE.TextureLoader().load(textureUrl);
+    } catch (_) {}
+  }
+
+  const mat = new THREE.MeshStandardMaterial({
+    map: tex,
+    roughness: 0.35,
+    metalness: 0.75,
+    color: 0xffffff,
+    transparent: true,
+    side: THREE.DoubleSide
+  });
+
+  if (type === 'glb' && typeof THREE.GLTFLoader !== 'undefined') {
+    const loader = new THREE.GLTFLoader();
+    loader.load(url, (gltf) => {
+      const model = gltf.scene || gltf.scenes[0];
+      const box = new THREE.Box3().setFromObject(model);
+      const size = new THREE.Vector3();
+      box.getSize(size);
+      const center = new THREE.Vector3();
+      box.getCenter(center);
+      model.position.sub(center);
+      const maxDim = Math.max(size.x, size.y, size.z) || 1;
+      const s = 1.0 / maxDim;
+      model.scale.set(s, s, s);
+      custom3DGroup.add(model);
+      console.log('[SnapAR 3D] Mounted custom GLB model to face anchor');
+    }, undefined, (e) => console.warn('[SnapAR 3D] GLB Load Error', e));
+  } else if (type === 'obj' && typeof THREE.OBJLoader !== 'undefined') {
+    const loader = new THREE.OBJLoader();
+    loader.load(url, (obj) => {
+      obj.traverse((child) => {
+        if (child.isMesh) {
+          child.material = mat;
+          child.geometry.computeVertexNormals();
+        }
+      });
+      const box = new THREE.Box3().setFromObject(obj);
+      const size = new THREE.Vector3();
+      box.getSize(size);
+      const center = new THREE.Vector3();
+      box.getCenter(center);
+      obj.position.sub(center);
+      const maxDim = Math.max(size.x, size.y, size.z) || 1;
+      const s = 1.0 / maxDim;
+      obj.scale.set(s, s, s);
+      custom3DGroup.add(obj);
+      console.log('[SnapAR 3D] Mounted custom OBJ model to face anchor');
+    }, undefined, (e) => console.warn('[SnapAR 3D] OBJ Load Error', e));
+  }
+}
+
+// Cached Lens Icons
+const lensIconCache = new Map();
+function getCachedLensIcon(lensMeta) {
+  if (!lensMeta || !lensMeta.icon_url) return null;
+  if (!lensIconCache.has(lensMeta.icon_url)) {
+    const img = new Image();
+    img.crossOrigin = 'anonymous';
+    img.src = lensMeta.icon_url;
+    lensIconCache.set(lensMeta.icon_url, img);
+  }
+  return lensIconCache.get(lensMeta.icon_url);
 }
 
 // Particles Initialization
@@ -1210,6 +1397,12 @@ function startLocalArEngine() {
     // 5. Wireframe Overlay (if toggled)
     snapTracker.drawWireframe(ctx);
 
+    // 6. If recording video, composite 3D overlay into main canvas stream
+    if (isRecordingVideo && (abyssalCrownGroup?.visible || custom3DGroup?.visible)) {
+      const threeCv = document.getElementById('ck-three-canvas');
+      if (threeCv) ctx.drawImage(threeCv, 0, 0, 720, 1280);
+    }
+
     ctx.restore();
 
     localRenderLoopId = requestAnimationFrame(renderFrame);
@@ -1225,16 +1418,27 @@ function renderActiveArLens(ctx, tracker, t) {
   // LENS 1: Celestial Kitsune
   if (ckCurrentLensId === "4df2b87d-52eb-4ec3-bc0f-fd1919712256") {
     if (abyssalCrownGroup) abyssalCrownGroup.visible = false;
+    if (custom3DGroup) custom3DGroup.visible = false;
+    if (threeRenderer) threeRenderer.clear();
     renderCelestialKitsune(ctx, pv, t);
   }
   // LENS 2: Verdant Gilded Tiara
   else if (ckCurrentLensId === "verdant_gilded") {
     if (abyssalCrownGroup) abyssalCrownGroup.visible = false;
+    if (custom3DGroup) custom3DGroup.visible = false;
+    if (threeRenderer) threeRenderer.clear();
     renderVerdantTiara(ctx, pv, t);
   }
-  // LENS 3 & Default: Abyssal Crown (True 3D WebGL Mesh)
-  else {
+  // LENS 3: Abyssal Crown (True 3D WebGL Mesh)
+  else if (ckCurrentLensId === "06ab0c08-158f-762e-8000-87bcd093434c") {
+    if (custom3DGroup) custom3DGroup.visible = false;
     renderAbyssalCrown(ctx, pv, t);
+  }
+  // LENS 4: Custom Uploaded / Sideloaded Lenses
+  else {
+    if (abyssalCrownGroup) abyssalCrownGroup.visible = false;
+    const lensMeta = loadedLensesList.find(l => l.id === ckCurrentLensId);
+    renderUploadedCustomLens(ctx, pv, t, lensMeta);
   }
 }
 
@@ -1477,18 +1681,17 @@ function renderAbyssalCrown(ctx, pv, t) {
     const threeX = fx - 360;
     const threeY = 640 - (fy - 25 * scale);
     const threeZ = (scale - 1.0) * 120;
-    abyssalCrownGroup.position.set(threeX, threeY, threeZ);
-
-    // Scale normalization (0.702 span -> ~330px width across head)
     const targetPxWidth = 330 * scale;
     const s = targetPxWidth / 0.702;
-    abyssalCrownGroup.scale.set(s, s, s);
 
-    // Snapchat Kinematic Rotations (Roll, Yaw, Pitch)
-    abyssalCrownGroup.rotation.order = 'ZYX';
-    abyssalCrownGroup.rotation.z = -roll;
-    abyssalCrownGroup.rotation.y = yaw * 0.75;
-    abyssalCrownGroup.rotation.x = -pitch * 0.65;
+    const targetPos = new THREE.Vector3(threeX, threeY, threeZ);
+    const targetScale = new THREE.Vector3(s, s, s);
+    const targetEuler = new THREE.Euler(-pitch * 0.65, yaw * 0.75, -roll, 'YXZ');
+    const targetQuat = new THREE.Quaternion().setFromEuler(targetEuler);
+
+    abyssalCrownGroup.position.lerp(targetPos, 0.28);
+    abyssalCrownGroup.scale.lerp(targetScale, 0.20);
+    abyssalCrownGroup.quaternion.slerp(targetQuat, 0.25);
 
     // Wireframe toggle & Emissive PBR glow
     if (abyssalCrownMaterial) {
@@ -1507,11 +1710,8 @@ function renderAbyssalCrown(ctx, pv, t) {
       }
     }
 
-    // Render 3D WebGL scene to offscreen canvas
+    // Render 3D WebGL scene directly to hardware composited overlay
     threeRenderer.render(threeScene, threeCamera);
-
-    // Composite 3D layer directly on top of video feed
-    ctx.drawImage(threeCanvas, 0, 0, 720, 1280);
 
     // Rising Cyan Embers
     ctx.save();
@@ -1691,6 +1891,144 @@ function renderAbyssalCrown(ctx, pv, t) {
   }
 }
 
+// 4. CUSTOM UPLOADED / SIDELOADED LENS RENDERER (Local GPU Three.js + AR Cyber Crest)
+function renderUploadedCustomLens(ctx, pv, t, lensMeta) {
+  const fx = pv.foreheadPosition2D.x;
+  const fy = pv.foreheadPosition2D.y;
+  const cx = pv.headCenterPosition2D.x;
+  const cy = pv.headCenterPosition2D.y;
+  const scale = pv.scaleFactor;
+  const roll = pv.headAngleRad;
+  const yaw = pv.headYaw;
+  const pitch = pv.headPitch;
+  const isMouthOpen = pv.isMouthOpen;
+
+  // 1. If custom 3D model is loaded, render with Three.js
+  if (custom3DGroup && custom3DGroup.children.length > 0 && threeRenderer) {
+    custom3DGroup.visible = true;
+
+    const threeX = fx - 360;
+    const threeY = 640 - (fy - 20 * scale);
+    const threeZ = (scale - 1.0) * 120;
+
+    const targetPos = new THREE.Vector3(threeX, threeY, threeZ);
+    const targetScale = new THREE.Vector3(320 * scale, 320 * scale, 320 * scale);
+    const targetEuler = new THREE.Euler(-pitch * 0.65, yaw * 0.75, -roll, 'YXZ');
+    const targetQuat = new THREE.Quaternion().setFromEuler(targetEuler);
+
+    custom3DGroup.position.lerp(targetPos, 0.28);
+    custom3DGroup.scale.lerp(targetScale, 0.20);
+    custom3DGroup.quaternion.slerp(targetQuat, 0.25);
+
+    threeRenderer.render(threeScene, threeCamera);
+  } else if (threeRenderer) {
+    threeRenderer.clear();
+  }
+
+  // 2. Render Holographic AR Diadem & Crest on 2D Canvas
+  ctx.save();
+  ctx.translate(fx, fy - 35 * scale);
+  ctx.rotate(roll);
+
+  const pulse = Math.sin(t * 4) * 0.15 + 0.85;
+  const crownW = 180 * scale;
+  const crownH = 80 * scale;
+
+  ctx.strokeStyle = isMouthOpen ? '#00f2fe' : '#a855f7';
+  ctx.lineWidth = 2.5 * scale;
+  ctx.shadowColor = isMouthOpen ? '#00f2fe' : '#ec4899';
+  ctx.shadowBlur = 18 * pulse;
+
+  // Outer Hologram Diadem Arc
+  ctx.beginPath();
+  ctx.moveTo(-crownW * 0.5, 0);
+  ctx.quadraticCurveTo(0, -crownH * 0.8 * pulse, crownW * 0.5, 0);
+  ctx.stroke();
+
+  // Floating Center Lens Icon or Emblem
+  const iconImg = getCachedLensIcon(lensMeta);
+  if (iconImg && iconImg.complete && iconImg.naturalWidth > 0) {
+    ctx.save();
+    const gemSize = 44 * scale * pulse;
+    ctx.beginPath();
+    ctx.arc(0, -crownH * 0.4, gemSize * 0.5, 0, Math.PI * 2);
+    ctx.clip();
+    ctx.drawImage(iconImg, -gemSize * 0.5, -crownH * 0.4 - gemSize * 0.5, gemSize, gemSize);
+    ctx.restore();
+
+    ctx.beginPath();
+    ctx.arc(0, -crownH * 0.4, gemSize * 0.5, 0, Math.PI * 2);
+    ctx.strokeStyle = '#00f2fe';
+    ctx.lineWidth = 2 * scale;
+    ctx.stroke();
+  } else {
+    ctx.fillStyle = isMouthOpen ? '#00f2fe' : '#ec4899';
+    ctx.beginPath();
+    ctx.moveTo(0, -crownH * 0.65);
+    ctx.lineTo(16 * scale, -crownH * 0.4);
+    ctx.lineTo(0, -crownH * 0.15);
+    ctx.lineTo(-16 * scale, -crownH * 0.4);
+    ctx.closePath();
+    ctx.fill();
+  }
+
+  ctx.restore();
+
+  // 3. Glowing Cheek Markings (Kinematically Locked)
+  ctx.save();
+  ctx.strokeStyle = 'rgba(0, 242, 254, 0.75)';
+  ctx.lineWidth = 2 * scale;
+  ctx.shadowColor = '#00f2fe';
+  ctx.shadowBlur = 10;
+
+  const lx = pv.leftCheekPosition2D.x;
+  const ly = pv.leftCheekPosition2D.y;
+  const rx = pv.rightCheekPosition2D.x;
+  const ry = pv.rightCheekPosition2D.y;
+
+  ctx.beginPath();
+  ctx.moveTo(lx - 20 * scale, ly - 10 * scale);
+  ctx.lineTo(lx, ly);
+  ctx.lineTo(lx - 15 * scale, ly + 15 * scale);
+  ctx.stroke();
+
+  ctx.beginPath();
+  ctx.moveTo(rx + 20 * scale, ry - 10 * scale);
+  ctx.lineTo(rx, ry);
+  ctx.lineTo(rx + 15 * scale, ry + 15 * scale);
+  ctx.stroke();
+  ctx.restore();
+
+  // 4. Mouth Particle Energy Surge
+  if (isMouthOpen) {
+    const mx = pv.mouthPosition2D.x;
+    const my = pv.mouthPosition2D.y;
+    const mRatio = pv.mouthOpenRatio;
+
+    ctx.save();
+    ctx.translate(mx, my);
+    ctx.fillStyle = '#00f2fe';
+    ctx.shadowColor = '#00f2fe';
+    ctx.shadowBlur = 24;
+
+    ctx.beginPath();
+    ctx.ellipse(0, 0, 18 * scale * (1 + mRatio), 26 * scale * (1 + mRatio), roll, 0, Math.PI * 2);
+    ctx.fill();
+
+    for (let i = 0; i < 6; i++) {
+      const ang = (i / 6) * Math.PI * 2 + t * 6;
+      const len = (40 + Math.random() * 50) * scale * (1 + mRatio);
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.9)';
+      ctx.lineWidth = 2 * scale;
+      ctx.beginPath();
+      ctx.moveTo(0, 0);
+      ctx.lineTo(Math.cos(ang) * len, Math.sin(ang) * len);
+      ctx.stroke();
+    }
+    ctx.restore();
+  }
+}
+
 // 3. VERDANT GILDED TIARA (100% Landmark-Locked with Emerald Starburst)
 function renderVerdantTiara(ctx, pv, t) {
   const fx = pv.foreheadPosition2D.x;
@@ -1811,7 +2149,20 @@ async function capturePhotoSnap() {
     if (snd) { snd.currentTime = 0; snd.play().catch(() => {}); }
   } catch (_) {}
 
-  const dataUrl = canvas.toDataURL('image/png', 0.95);
+  // Merge base canvas and 3D overlay if active
+  let captureCanvas = canvas;
+  const threeCanvas = document.getElementById('ck-three-canvas');
+  if (threeCanvas && (abyssalCrownGroup?.visible || custom3DGroup?.visible)) {
+    const mergeCanvas = document.createElement('canvas');
+    mergeCanvas.width = 720;
+    mergeCanvas.height = 1280;
+    const mCtx = mergeCanvas.getContext('2d');
+    mCtx.drawImage(canvas, 0, 0);
+    mCtx.drawImage(threeCanvas, 0, 0);
+    captureCanvas = mergeCanvas;
+  }
+
+  const dataUrl = captureCanvas.toDataURL('image/png', 0.95);
 
   const formData = new FormData();
   formData.append('type', 'photo');
@@ -2135,14 +2486,30 @@ async function uploadLensBundle(file) {
         }
 
         const meshes = [], textures = [], shaders = [], scripts = [];
-        fileNames.forEach(fn => {
+        let modelBlobUrl = null;
+        let modelType = null;
+
+        for (const fn of fileNames) {
           const lower = fn.toLowerCase();
           const base = fn.split('/').pop();
-          if (['.mesh', '.glb', '.scn', '.t3d', '.ply'].some(ext => lower.endsWith(ext))) meshes.push({ name: base, size_bytes: zip.files[fn]._data?.uncompressedSize || 1024 });
+          if (['.mesh', '.glb', '.gltf', '.scn', '.t3d', '.ply', '.obj'].some(ext => lower.endsWith(ext))) {
+            meshes.push({ name: base, size_bytes: zip.files[fn]._data?.uncompressedSize || 1024 });
+            if (!modelBlobUrl) {
+              if (lower.endsWith('.glb') || lower.endsWith('.gltf')) {
+                const b = await zip.files[fn].async('blob');
+                modelBlobUrl = URL.createObjectURL(b);
+                modelType = 'glb';
+              } else if (lower.endsWith('.obj')) {
+                const b = await zip.files[fn].async('blob');
+                modelBlobUrl = URL.createObjectURL(b);
+                modelType = 'obj';
+              }
+            }
+          }
           else if (['.png', '.jpg', '.jpeg', '.webp'].some(ext => lower.endsWith(ext))) textures.push({ name: base, size_bytes: zip.files[fn]._data?.uncompressedSize || 1024 });
           else if (['.glsl', '.reflection'].some(ext => lower.endsWith(ext))) shaders.push({ name: base, size_bytes: zip.files[fn]._data?.uncompressedSize || 1024 });
           else if (['.js', '.ts', '.gs'].some(ext => lower.endsWith(ext))) scripts.push({ name: base, size_bytes: zip.files[fn]._data?.uncompressedSize || 1024 });
-        });
+        }
 
         const localId = 'local_' + sha256Hex.slice(0, 12);
         const cleanName = file.name.replace(/\.[^/.]+$/, '').replace(/[_-]/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
@@ -2154,6 +2521,8 @@ async function uploadLensBundle(file) {
           filename: file.name,
           url: localBlobUrl,
           icon_url: iconBlobUrl,
+          modelUrl: modelBlobUrl,
+          modelType: modelType,
           sha256: sha256Hex,
           size_bytes: file.size,
           likes: 42,
@@ -2234,6 +2603,59 @@ async function uploadLensBundle(file) {
     }, 3000);
   }
 }
+
+// Direct URL Sideloading
+window.sideloadFromUrl = async function() {
+  const input = document.getElementById('direct-lens-url-input');
+  const statusEl = document.getElementById('url-sideload-status');
+  const btn = document.getElementById('btn-load-url');
+  const url = (input ? input.value : '').trim();
+
+  if (!url) {
+    alert('Please enter a valid URL to a .lns, .zip, or .glb lens asset');
+    return;
+  }
+
+  if (statusEl) {
+    statusEl.style.display = 'block';
+    statusEl.style.color = '#00f2fe';
+    statusEl.textContent = '⏳ Fetching & unpacking lens bundle from URL...';
+  }
+  if (btn) btn.disabled = true;
+
+  try {
+    const res = await fetch('/api/fetch_lens_url', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ url: url })
+    });
+    const data = await res.json();
+
+    if (data.success && data.lens) {
+      if (statusEl) {
+        statusEl.style.color = '#00f076';
+        statusEl.textContent = `✨ Lens '${data.lens.name}' live & ready!`;
+      }
+      await fetchLenses();
+      await selectLens(data.lens.id);
+      setTimeout(() => {
+        window.toggleStudioDrawer();
+      }, 900);
+    } else {
+      if (statusEl) {
+        statusEl.style.color = '#ff4d4d';
+        statusEl.textContent = `❌ ${data.error || 'Failed to download lens bundle'}`;
+      }
+    }
+  } catch (err) {
+    if (statusEl) {
+      statusEl.style.color = '#ff4d4d';
+      statusEl.textContent = `❌ Error: ${err.message || err}`;
+    }
+  } finally {
+    if (btn) btn.disabled = false;
+  }
+};
 
 // Custom Media Upload (test against any custom portrait)
 window.openCustomMediaModal = () => {
@@ -2466,9 +2888,15 @@ window.syncLensGroup = async function(manualGroupId, manualToken) {
 
       if (consoleEl) {
         consoleEl.className = 'group-sync-console is-error';
-        consoleEl.textContent = `❌ Snap Camera Kit Response:\n${errMsg}\n\n🔍 DIAGNOSTIC ROOT CAUSE:\n` +
-          `1. Cross-Organization Isolation: Lens Groups are strictly scoped to the Snap Developer Organization where they were created. If this group was created under another Snap account, paste the creator's API Token from the Camera Kit Developer Portal into 'API Token Override' above.\n\n` +
-          `2. Pending Upload / Scheduling: If the creator has not uploaded or scheduled lenses yet ("mai kalnu ehde ander sarre lenses upload kardunga"), Snap returns '[5] group not found' until active lenses are published in the Lens Scheduler.`;
+        consoleEl.textContent = `❌ Snap Camera Kit Gateway Status: ${errMsg}\n\n` +
+          `🔍 ROOT CAUSE & FIX (Status 16 - Request Not Authenticated):\n` +
+          `1. Platform Mismatch: In the Snap Camera Kit Portal (App a83773e6-ee80-4613-bb4d-deda02b1ef87), the API token was generated for Mobile/Android (which requires a Mobile Bundle ID) or lacks Web Platform domain whitelist.\n` +
+          `2. Developer Portal Fix:\n` +
+          `   • Go to: https://camera-kit.snapchat.com\n` +
+          `   • App a83773e6-ee80-4613-bb4d-deda02b1ef87 -> Add Web Platform -> Allowed Origins: https://snap-lens-studio-production.up.railway.app\n` +
+          `   • Generate a Web API Token and schedule lenses in Group '${groupId}'.\n\n` +
+          `✨ 100% OFFLINE LOCAL SOLUTION (Zero Cloud Dependency):\n` +
+          `Drop the exported .lns / .zip / .glb into the dropzone above, or paste the public URL in 'Sideload from URL' for instant 60-120 FPS AR on camera!`;
       }
       return;
     }
