@@ -181,6 +181,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   setupShutter();
   setupSplitSlider();
   setupPwa();
+  setupCarouselGestures();
 
   // 0. Immediate 0ms Jewelry Carousel Render (Zero network or camera delay!)
   renderLensesList();
@@ -345,6 +346,7 @@ function renderLensesList() {
   loadedLensesList.forEach(lens => {
     const item = document.createElement('div');
     item.className = `lens-card ${lens.id === ckCurrentLensId ? 'active' : ''}`;
+    item.setAttribute('data-lens-id', lens.id);
     item.onclick = () => selectLens(lens.id);
 
     const iconSrc = lens.icon_url || '/static/samples/abyssal_crown_icon.png';
@@ -371,10 +373,58 @@ function renderLensesList() {
   });
 }
 
-// Render Bottom Lens Carousel
+// Update carousel active state without destroying DOM
+function updateCarouselActiveState() {
+  const carousel = document.getElementById('lens-carousel');
+  if (!carousel) return;
+  const items = carousel.querySelectorAll('.carousel-lens-item[data-lens-id]');
+  items.forEach(item => {
+    const isCur = item.getAttribute('data-lens-id') === ckCurrentLensId;
+    item.classList.toggle('active', isCur);
+    if (isCur) {
+      item.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' });
+    }
+  });
+}
+
+// Update drawer list active state without tearing down DOM
+function updateDrawerListActiveState() {
+  const container = document.getElementById('lenses-list');
+  if (!container) return;
+  container.querySelectorAll('.lens-card[data-lens-id]').forEach(card => {
+    card.classList.toggle('active', card.getAttribute('data-lens-id') === ckCurrentLensId);
+  });
+}
+
+// Next / Previous Lens switcher (Supports touch swiping, arrows, and buttons)
+window.selectNextLens = function() {
+  if (!loadedLensesList || !loadedLensesList.length) return;
+  const curIdx = loadedLensesList.findIndex(l => l.id === ckCurrentLensId);
+  const nextIdx = (curIdx + 1) % loadedLensesList.length;
+  selectLens(loadedLensesList[nextIdx].id);
+};
+
+window.selectPrevLens = function() {
+  if (!loadedLensesList || !loadedLensesList.length) return;
+  const curIdx = loadedLensesList.findIndex(l => l.id === ckCurrentLensId);
+  const prevIdx = (curIdx - 1 + loadedLensesList.length) % loadedLensesList.length;
+  selectLens(loadedLensesList[prevIdx].id);
+};
+
+// Render Bottom Lens Carousel (Safe: avoids erasing DOM if items already present)
 function renderCarousel() {
   const carousel = document.getElementById('lens-carousel');
   if (!carousel) return;
+
+  const currentPills = Array.from(carousel.querySelectorAll('[data-lens-id]'));
+  const currentIds = currentPills.map(el => el.getAttribute('data-lens-id'));
+  const newIds = loadedLensesList.map(l => l.id);
+
+  // If already rendered with the exact same items, just update active states and return!
+  if (currentIds.length === newIds.length && currentIds.every((id, idx) => id === newIds[idx])) {
+    updateCarouselActiveState();
+    return;
+  }
 
   carousel.innerHTML = '';
 
@@ -393,8 +443,14 @@ function renderCarousel() {
   loadedLensesList.forEach(lens => {
     const pill = document.createElement('div');
     pill.className = `carousel-lens-item ${lens.id === ckCurrentLensId ? 'active' : ''} ${lens.is_camerakit_cloud ? 'carousel-cloud-lens' : ''}`;
+    pill.setAttribute('data-lens-id', lens.id);
     pill.title = lens.name;
-    pill.onclick = () => selectLens(lens.id);
+
+    // Direct click and pointerdown listener
+    pill.addEventListener('click', (e) => {
+      e.stopPropagation();
+      selectLens(lens.id);
+    });
 
     const iconSrc = lens.icon_url || '/static/samples/nose_pin_icon.svg';
     pill.innerHTML = `
@@ -403,14 +459,97 @@ function renderCarousel() {
     `;
     carousel.appendChild(pill);
   });
+
+  updateCarouselActiveState();
 }
 
-// Select Lens
+// Touch, Swipe & Keyboard Gestures for effortless lens wiggling & switching
+function setupCarouselGestures() {
+  const carousel = document.getElementById('lens-carousel');
+  const viewport = document.getElementById('viewport-screen');
+
+  // Keyboard navigation
+  window.addEventListener('keydown', (e) => {
+    if (e.key === 'ArrowRight' || e.key === 'ArrowDown') {
+      selectNextLens();
+    } else if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') {
+      selectPrevLens();
+    }
+  });
+
+  // Touch Swipe on Viewport
+  if (viewport) {
+    let touchStartX = 0;
+    let touchStartY = 0;
+    let touchStartTime = 0;
+
+    viewport.addEventListener('touchstart', (e) => {
+      if (e.touches.length === 1) {
+        touchStartX = e.touches[0].clientX;
+        touchStartY = e.touches[0].clientY;
+        touchStartTime = Date.now();
+      }
+    }, { passive: true });
+
+    viewport.addEventListener('touchend', (e) => {
+      if (!touchStartX || e.changedTouches.length !== 1) return;
+      const dx = e.changedTouches[0].clientX - touchStartX;
+      const dy = e.changedTouches[0].clientY - touchStartY;
+      const dt = Date.now() - touchStartTime;
+
+      if (Math.abs(dx) > 40 && Math.abs(dx) > Math.abs(dy) * 1.5 && dt < 500) {
+        if (dx < 0) {
+          selectNextLens();
+        } else {
+          selectPrevLens();
+        }
+      }
+      touchStartX = 0;
+      touchStartY = 0;
+    }, { passive: true });
+  }
+
+  // Scroll listener on carousel to detect center item during free scroll
+  if (carousel) {
+    let scrollTimer = null;
+    carousel.addEventListener('scroll', () => {
+      clearTimeout(scrollTimer);
+      scrollTimer = setTimeout(() => {
+        const carouselRect = carousel.getBoundingClientRect();
+        const centerX = carouselRect.left + carouselRect.width / 2;
+        const items = carousel.querySelectorAll('.carousel-lens-item[data-lens-id]');
+        let closestItem = null;
+        let closestDist = Infinity;
+
+        items.forEach(item => {
+          const r = item.getBoundingClientRect();
+          const itemCenter = r.left + r.width / 2;
+          const dist = Math.abs(itemCenter - centerX);
+          if (dist < closestDist) {
+            closestDist = dist;
+            closestItem = item;
+          }
+        });
+
+        if (closestItem && closestDist < 35) {
+          const newLensId = closestItem.getAttribute('data-lens-id');
+          if (newLensId && newLensId !== ckCurrentLensId) {
+            selectLens(newLensId);
+          }
+        }
+      }, 90);
+    }, { passive: true });
+  }
+}
+
+// Select Lens (Non-blocking: local canvas ALWAYS active at 60-120 FPS)
 async function selectLens(lensId) {
+  if (!lensId) return;
   ckCurrentLensId = lensId;
 
-  renderCarousel();
-  renderLensesList();
+  // 1. Instantly update active styles on carousel and drawer without wiping DOM
+  updateCarouselActiveState();
+  updateDrawerListActiveState();
 
   const lensMeta = loadedLensesList.find(l => l.id === lensId);
   if (lensMeta) {
@@ -421,47 +560,40 @@ async function selectLens(lensId) {
   const localCanvas = document.getElementById('ck-canvas');
   const ckCanvas = document.getElementById('ck-camerakit-canvas');
 
-  // Handle Camera Kit Cloud Lens
+  // 2. ALWAYS keep localCanvas visible so high-precision 60-120 FPS AR never drops!
+  if (localCanvas) localCanvas.style.display = 'block';
+
+  // 3. Reset procedural particles for smooth transition
+  resetLocalArParticles();
+  if (snapTracker) {
+    snapTracker.showHint('lens_hint_open_your_mouth', 3.5);
+  }
+
+  // 4. If custom 3D model attached, load it
+  if (lensMeta && lensMeta.modelUrl) {
+    loadCustomLens3DModel(lensMeta.modelUrl, lensMeta.modelType, lensMeta.textureUrl).catch(() => {});
+  } else if (custom3DGroup) {
+    while (custom3DGroup.children.length > 0) {
+      custom3DGroup.remove(custom3DGroup.children[0]);
+    }
+  }
+
+  // 5. Background apply to Camera Kit if available (non-blocking)
   if (lensMeta && lensMeta.is_camerakit_cloud && lensMeta.camerakit_lens_obj) {
-    if (localCanvas) localCanvas.style.display = 'none';
-    if (ckCanvas) ckCanvas.style.display = 'block';
-
-    try {
-      const session = await ensureCameraKitSession();
+    ensureCameraKitSession().then(session => {
       if (session) {
-        await session.applyLens(lensMeta.camerakit_lens_obj);
-        console.log('[Camera Kit] Applied cloud lens:', lensMeta.name);
+        session.applyLens(lensMeta.camerakit_lens_obj).then(() => {
+          console.log('[Camera Kit] Applied cloud lens:', lensMeta.name);
+          if (ckCanvas) ckCanvas.style.display = 'block';
+        }).catch(err => {
+          console.warn('[Camera Kit Apply Warn]', err);
+        });
       }
-    } catch (e) {
-      console.warn('[Camera Kit Cloud Apply Error]', e);
-    }
-  } else {
-    // Switch to Local AR Canvas
-    if (ckCanvas) ckCanvas.style.display = 'none';
-    if (localCanvas) localCanvas.style.display = 'block';
-
-    // Check if custom lens has 3D model attached
-    if (lensMeta && lensMeta.modelUrl) {
-      await loadCustomLens3DModel(lensMeta.modelUrl, lensMeta.modelType, lensMeta.textureUrl);
-    } else if (custom3DGroup) {
-      while (custom3DGroup.children.length > 0) {
-        custom3DGroup.remove(custom3DGroup.children[0]);
-      }
-    }
-
-    // Trigger Local AR Re-sync & Snapchat Hint
-    resetLocalArParticles();
-    if (snapTracker) {
-      snapTracker.showHint('lens_hint_open_your_mouth', 4.5);
-    }
-
-    // Also apply to Camera Kit if active
-    if (ckSession && ckInstance) {
-      try {
-        const lens = await ckInstance.lensRepository.loadLens(lensId, "lens-sideload-extension-group");
-        await ckSession.applyLens(lens);
-      } catch (_) {}
-    }
+    }).catch(() => {});
+  } else if (ckSession && ckInstance) {
+    ckInstance.lensRepository.loadLens(lensId, "lens-sideload-extension-group")
+      .then(lens => ckSession.applyLens(lens))
+      .catch(() => {});
   }
 }
 

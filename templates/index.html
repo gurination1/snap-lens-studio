@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
   <title>SnapAR Studio • Mobile Web Lens Tester & Live AR</title>
-  <link rel="stylesheet" href="/static/css/studio.css?v=20261007_v3">
+  <link rel="stylesheet" href="/static/css/studio.css?v=20261007_v4">
   <link rel="manifest" href="/static/manifest.json">
   <meta name="theme-color" content="#06080d">
   <meta name="apple-mobile-web-app-capable" content="yes">
@@ -147,9 +147,11 @@
 
           <!-- Lens Carousel (Snapchat Horizontal Swipe Strip) -->
           <div class="lens-carousel-container">
+            <button class="carousel-arrow-btn prev-arrow" onclick="selectPrevLens()" title="Previous Lens" aria-label="Previous Lens">‹</button>
             <div class="lens-carousel" id="lens-carousel">
               <!-- Dynamically populated by studio.js -->
             </div>
+            <button class="carousel-arrow-btn next-arrow" onclick="selectNextLens()" title="Next Lens" aria-label="Next Lens">›</button>
           </div>
 
           <!-- Snapchat Center Shutter Button -->
@@ -520,7 +522,7 @@
   <!-- Google MediaPipe FaceMesh (Local Assets for 468 3D Landmark Tracking) -->
   <script src="/static/vendor/mediapipe/face_mesh.js"></script>
   <!-- Main Studio JavaScript -->
-  <script src="/static/js/studio.js?v=20261007_v3"></script>
+  <script src="/static/js/studio.js?v=20261007_v4"></script>
 
 </body>
 </html>

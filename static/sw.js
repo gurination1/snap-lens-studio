@@ -1,8 +1,8 @@
-const CACHE_NAME = 'snapar-studio-v3';
+const CACHE_NAME = 'snapar-studio-v4';
 const ASSETS_TO_CACHE = [
   '/',
-  '/static/css/studio.css?v=20261007_v3',
-  '/static/js/studio.js?v=20261007_v3',
+  '/static/css/studio.css?v=20261007_v4',
+  '/static/js/studio.js?v=20261007_v4',
   '/static/js/jszip.min.js',
   '/static/vendor/three/three.min.js',
   '/static/vendor/three/OBJLoader.js',
