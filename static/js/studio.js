@@ -11,14 +11,90 @@ let ckFacingMode = 'user'; // 'user' (front) or 'environment' (back)
 let ckFramingMode = 'fit'; // 'fit' (zero zoom) or 'crop'
 let ckIsMirrored = true;
 let ckBeautyGlow = true;
-let ckCurrentLensId = "06ab0c08-158f-762e-8000-87bcd093434c"; // default: Abyssal Crown
+let ckCurrentLensId = "b63b3ffa-17e6-475b-b5e1-560a1909e989"; // default: Nose Pin (Snap Jewelry AR)
 let webcamStream = null;
 let customMediaUrl = null;
 let customMediaType = null;
 
-// Registry of loaded lenses
+// Built-in Snapchat Camera Kit Jewelry Lenses (Immediate 0ms render)
+const DEFAULT_JEWELRY_LENSES = [
+  {
+    id: "b63b3ffa-17e6-475b-b5e1-560a1909e989",
+    name: "Nose Pin",
+    icon_url: "/static/samples/nose_pin_icon.svg",
+    sc_icon_url: "https://bolt-gcdn.sc-cdn.net/3/jebgGab0UE11xXmFg9zLI?bo=EhQyAX06AQRCBgjhoY_WBkgCUBJgAQ%3D%3D&uc=18",
+    is_sample: false,
+    is_camerakit_cloud: true,
+    groupId: "6d4c3a49-b090-45b2-b2f7-720e78e9f7fd",
+    category: "nose_pin",
+    description: "Snap Camera Kit Live Jewelry AR • Nose Pin with dynamic gemstone sparkle.",
+    likes: 842
+  },
+  {
+    id: "890e102c-e759-4654-a36a-75ab11cc9b3c",
+    name: "Gold Tikka",
+    icon_url: "/static/samples/gold_tikka_icon.svg",
+    sc_icon_url: "https://bolt-gcdn.sc-cdn.net/3/aVUI735zPdMm8L6Cl0Nvy?bo=EhQyAX06AQRCBgjGufrVBkgCUBJgAQ%3D%3D&uc=18",
+    is_sample: false,
+    is_camerakit_cloud: true,
+    groupId: "6d4c3a49-b090-45b2-b2f7-720e78e9f7fd",
+    category: "tikka_gold",
+    description: "Snap Camera Kit Live Jewelry AR • 24K Gold Forehead Maang Tikka.",
+    likes: 965
+  },
+  {
+    id: "d3f9b594-0a27-45d0-8d5d-a42c827bd102",
+    name: "Silver Tikka",
+    icon_url: "/static/samples/silver_tikka_icon.svg",
+    sc_icon_url: "https://bolt-gcdn.sc-cdn.net/3/bLovqziV5JNgX3akYcGaI?bo=EhQyAX06AQRCBgjtvPrVBkgCUBJgAQ%3D%3D&uc=18",
+    is_sample: false,
+    is_camerakit_cloud: true,
+    groupId: "6d4c3a49-b090-45b2-b2f7-720e78e9f7fd",
+    category: "tikka_silver",
+    description: "Snap Camera Kit Live Jewelry AR • Sterling Silver Forehead Tikka.",
+    likes: 718
+  },
+  {
+    id: "906ee6ed-494d-4771-9a78-9dd3f4b5857a",
+    name: "EARRINGS 3D!",
+    icon_url: "/static/samples/earrings_icon.svg",
+    sc_icon_url: "https://bolt-gcdn.sc-cdn.net/3/8WF8ljqylCcX6zrCPFJVT?bo=EhQyAX06AQRCBgjk-vnVBkgCUBJgAQ%3D%3D&uc=18",
+    is_sample: false,
+    is_camerakit_cloud: true,
+    groupId: "6d4c3a49-b090-45b2-b2f7-720e78e9f7fd",
+    category: "earrings",
+    description: "Snap Camera Kit Live Jewelry AR • 3D Dangling Earrings with earlobe tracking.",
+    likes: 1240
+  },
+  {
+    id: "e86c0043-697b-43ba-9103-b7f9f3a886e8",
+    name: "Ring Box",
+    icon_url: "/static/samples/ring_box_icon.svg",
+    sc_icon_url: "https://bolt-gcdn.sc-cdn.net/3/rwBQfCAyGxkEjdSIV5Gur?bo=EhQyAX06AQRCBgijsPrVBkgCUBJgAQ%3D%3D&uc=18",
+    is_sample: false,
+    is_camerakit_cloud: true,
+    groupId: "6d4c3a49-b090-45b2-b2f7-720e78e9f7fd",
+    category: "ring_box",
+    description: "Snap Camera Kit Live Jewelry AR • Velvet Ring Box with solitaire diamond ring.",
+    likes: 650
+  },
+  {
+    id: "75ecf16a-d39a-40a0-ab2e-10a172a5a065",
+    name: "Bangle",
+    icon_url: "/static/samples/bangle_icon.svg",
+    sc_icon_url: "https://bolt-gcdn.sc-cdn.net/3/4wgP4hehkhVYl0xDLTHJY?bo=EhQyAX06AQRCBgjsgfrVBkgCUBJgAQ%3D%3D&uc=18",
+    is_sample: false,
+    is_camerakit_cloud: true,
+    groupId: "6d4c3a49-b090-45b2-b2f7-720e78e9f7fd",
+    category: "bangle",
+    description: "Snap Camera Kit Live Jewelry AR • Intricate Gold Kada / Bangle.",
+    likes: 880
+  }
+];
+
+// Registry of loaded lenses (Pre-seeded with 6 jewelry lenses)
 const sideloadedLenses = new Map();
-let loadedLensesList = [];
+let loadedLensesList = [...DEFAULT_JEWELRY_LENSES];
 
 // Camera Kit Server Config State
 let serverLensGroupId = "6d4c3a49-b090-45b2-b2f7-720e78e9f7fd";
@@ -105,6 +181,15 @@ document.addEventListener('DOMContentLoaded', async () => {
   setupShutter();
   setupSplitSlider();
   setupPwa();
+
+  // 0. Immediate 0ms Jewelry Carousel Render (Zero network or camera delay!)
+  renderLensesList();
+  renderCarousel();
+  const defaultLens = loadedLensesList.find(l => l.id === ckCurrentLensId) || loadedLensesList[0];
+  if (defaultLens) {
+    updateHudLens(defaultLens);
+    updateInspector(defaultLens);
+  }
 
   // 1. Start Camera Feed & Local AR immediately (0ms wait, no network freeze!)
   await applySelectedSource();
@@ -215,22 +300,29 @@ async function fetchLenses() {
     const res = await fetch('/api/lenses');
     const data = await res.json();
     if (data.success && data.lenses) {
-      loadedLensesList = data.lenses;
+      const existingMap = new Map(loadedLensesList.map(l => [l.id, l]));
+      loadedLensesList = data.lenses.map(l => {
+        const prev = existingMap.get(l.id);
+        if (prev && prev.camerakit_lens_obj) {
+          return { ...l, camerakit_lens_obj: prev.camerakit_lens_obj };
+        }
+        return l;
+      });
 
-      data.lenses.forEach(l => {
+      loadedLensesList.forEach(l => {
         sideloadedLenses.set(l.id, {
           id: l.id,
           name: l.name,
-          lnsUrl: window.location.origin + l.url,
+          lnsUrl: l.url ? (window.location.origin + l.url) : null,
           sha256: l.sha256,
-          iconUrl: l.icon_url ? window.location.origin + l.icon_url : null,
+          iconUrl: l.icon_url ? (window.location.origin + l.icon_url) : null,
           likes: l.likes || 100
         });
       });
 
       renderLensesList();
       renderCarousel();
-      const current = data.lenses.find(l => l.id === ckCurrentLensId) || data.lenses[0];
+      const current = loadedLensesList.find(l => l.id === ckCurrentLensId) || loadedLensesList[0];
       if (current) {
         updateInspector(current);
         updateHudLens(current);
@@ -304,9 +396,9 @@ function renderCarousel() {
     pill.title = lens.name;
     pill.onclick = () => selectLens(lens.id);
 
-    const iconSrc = lens.icon_url || '/static/samples/abyssal_crown_icon.png';
+    const iconSrc = lens.icon_url || '/static/samples/nose_pin_icon.svg';
     pill.innerHTML = `
-      <img class="carousel-lens-img" src="${iconSrc}" alt="${lens.name}">
+      <img class="carousel-lens-img" src="${iconSrc}" alt="${lens.name}" onerror="this.onerror=null; this.src='/static/samples/nose_pin_icon.svg'">
       ${lens.is_camerakit_cloud ? '<span class="carousel-cloud-badge">⚡</span>' : ''}
     `;
     carousel.appendChild(pill);
@@ -1424,26 +1516,68 @@ function startLocalArEngine() {
 function renderActiveArLens(ctx, tracker, t) {
   const pv = tracker.publicVars;
 
-  // LENS 1: Celestial Kitsune
-  if (ckCurrentLensId === "4df2b87d-52eb-4ec3-bc0f-fd1919712256") {
+  // JEWELRY LENS 1: Nose Pin
+  if (ckCurrentLensId === "b63b3ffa-17e6-475b-b5e1-560a1909e989") {
+    if (abyssalCrownGroup) abyssalCrownGroup.visible = false;
+    if (custom3DGroup) custom3DGroup.visible = false;
+    if (threeRenderer) threeRenderer.clear();
+    renderNosePin(ctx, pv, t);
+  }
+  // JEWELRY LENS 2: Gold Tikka
+  else if (ckCurrentLensId === "890e102c-e759-4654-a36a-75ab11cc9b3c") {
+    if (abyssalCrownGroup) abyssalCrownGroup.visible = false;
+    if (custom3DGroup) custom3DGroup.visible = false;
+    if (threeRenderer) threeRenderer.clear();
+    renderMaangTikka(ctx, pv, t, true);
+  }
+  // JEWELRY LENS 3: Silver Tikka
+  else if (ckCurrentLensId === "d3f9b594-0a27-45d0-8d5d-a42c827bd102") {
+    if (abyssalCrownGroup) abyssalCrownGroup.visible = false;
+    if (custom3DGroup) custom3DGroup.visible = false;
+    if (threeRenderer) threeRenderer.clear();
+    renderMaangTikka(ctx, pv, t, false);
+  }
+  // JEWELRY LENS 4: EARRINGS 3D!
+  else if (ckCurrentLensId === "906ee6ed-494d-4771-9a78-9dd3f4b5857a") {
+    if (abyssalCrownGroup) abyssalCrownGroup.visible = false;
+    if (custom3DGroup) custom3DGroup.visible = false;
+    if (threeRenderer) threeRenderer.clear();
+    renderEarrings3D(ctx, pv, t);
+  }
+  // JEWELRY LENS 5: Ring Box
+  else if (ckCurrentLensId === "e86c0043-697b-43ba-9103-b7f9f3a886e8") {
+    if (abyssalCrownGroup) abyssalCrownGroup.visible = false;
+    if (custom3DGroup) custom3DGroup.visible = false;
+    if (threeRenderer) threeRenderer.clear();
+    renderRingBox(ctx, pv, t);
+  }
+  // JEWELRY LENS 6: Bangle
+  else if (ckCurrentLensId === "75ecf16a-d39a-40a0-ab2e-10a172a5a065") {
+    if (abyssalCrownGroup) abyssalCrownGroup.visible = false;
+    if (custom3DGroup) custom3DGroup.visible = false;
+    if (threeRenderer) threeRenderer.clear();
+    renderBangle(ctx, pv, t);
+  }
+  // SAMPLE LENS: Celestial Kitsune
+  else if (ckCurrentLensId === "4df2b87d-52eb-4ec3-bc0f-fd1919712256") {
     if (abyssalCrownGroup) abyssalCrownGroup.visible = false;
     if (custom3DGroup) custom3DGroup.visible = false;
     if (threeRenderer) threeRenderer.clear();
     renderCelestialKitsune(ctx, pv, t);
   }
-  // LENS 2: Verdant Gilded Tiara
+  // SAMPLE LENS: Verdant Gilded Tiara
   else if (ckCurrentLensId === "verdant_gilded") {
     if (abyssalCrownGroup) abyssalCrownGroup.visible = false;
     if (custom3DGroup) custom3DGroup.visible = false;
     if (threeRenderer) threeRenderer.clear();
     renderVerdantTiara(ctx, pv, t);
   }
-  // LENS 3: Abyssal Crown (True 3D WebGL Mesh)
+  // SAMPLE LENS: Abyssal Crown (True 3D WebGL Mesh)
   else if (ckCurrentLensId === "06ab0c08-158f-762e-8000-87bcd093434c") {
     if (custom3DGroup) custom3DGroup.visible = false;
     renderAbyssalCrown(ctx, pv, t);
   }
-  // LENS 4: Custom Uploaded / Sideloaded Lenses
+  // Custom Uploaded / Sideloaded Lenses
   else {
     if (abyssalCrownGroup) abyssalCrownGroup.visible = false;
     const lensMeta = loadedLensesList.find(l => l.id === ckCurrentLensId);
@@ -1451,7 +1585,358 @@ function renderActiveArLens(ctx, tracker, t) {
   }
 }
 
-// 1. CELESTIAL KITSUNE (100% Landmark-Locked with Foxfire Mouth Blast)
+// ============================================================================
+// SNAPCHAT CAMERA KIT JEWELRY AR PROCEDURAL RENDERERS
+// Real-time Facial Landmark Compositing • PBR Sparkle Flares • Dynamic Physics
+// ============================================================================
+
+// 1. NOSE PIN (Tracked to Nostril Landmark with Gemstone Facet Flare)
+function renderNosePin(ctx, pv, t) {
+  const nx = pv.nosePosition2D.x;
+  const ny = pv.nosePosition2D.y;
+  const scale = pv.scaleFactor;
+  const roll = pv.headAngleRad;
+  const yaw = pv.headYaw;
+
+  // Track to nostril with yaw perspective
+  const pinX = nx + (13 * scale * (yaw > 0 ? 0.75 : 1.15));
+  const pinY = ny - (3 * scale);
+
+  ctx.save();
+  ctx.translate(pinX, pinY);
+  ctx.rotate(roll);
+
+  // Outer gold halo
+  const glow = Math.sin(t * 6) * 0.2 + 0.8;
+  const glowGrad = ctx.createRadialGradient(0, 0, 1, 0, 0, 15 * scale);
+  glowGrad.addColorStop(0, 'rgba(255, 235, 130, 0.75)');
+  glowGrad.addColorStop(0.5, 'rgba(255, 200, 50, 0.25)');
+  glowGrad.addColorStop(1, 'rgba(255, 200, 50, 0)');
+  ctx.fillStyle = glowGrad;
+  ctx.beginPath();
+  ctx.arc(0, 0, 15 * scale, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Gold base setting
+  ctx.beginPath();
+  ctx.arc(0, 0, 4.8 * scale, 0, Math.PI * 2);
+  ctx.fillStyle = '#ffd700';
+  ctx.fill();
+  ctx.strokeStyle = '#b8860b';
+  ctx.lineWidth = 1.3 * scale;
+  ctx.stroke();
+
+  // Diamond Solitaire Gem
+  ctx.beginPath();
+  ctx.arc(0, 0, 3.4 * scale, 0, Math.PI * 2);
+  const gemGrad = ctx.createRadialGradient(-1, -1, 0.5, 0, 0, 3.8 * scale);
+  gemGrad.addColorStop(0, '#ffffff');
+  gemGrad.addColorStop(0.5, '#d4f6ff');
+  gemGrad.addColorStop(1, '#00d4ff');
+  ctx.fillStyle = gemGrad;
+  ctx.fill();
+
+  // Diamond 4-point sparkle flare
+  ctx.save();
+  ctx.rotate(t * 1.5);
+  ctx.strokeStyle = `rgba(255, 255, 255, ${0.85 * glow})`;
+  ctx.lineWidth = 1.4 * scale;
+  const flareLen = (8 + Math.sin(t * 8) * 3) * scale;
+  ctx.beginPath();
+  ctx.moveTo(0, -flareLen); ctx.lineTo(0, flareLen);
+  ctx.moveTo(-flareLen, 0); ctx.lineTo(flareLen, 0);
+  ctx.stroke();
+  ctx.restore();
+
+  ctx.restore();
+}
+
+// 2. MAANG TIKKA (Gold or Silver with Hairline Chain & Center Medallion)
+function renderMaangTikka(ctx, pv, t, isGold = true) {
+  const fx = pv.foreheadPosition2D.x;
+  const fy = pv.foreheadPosition2D.y;
+  const scale = pv.scaleFactor;
+  const roll = pv.headAngleRad;
+  const yaw = pv.headYaw;
+
+  const primaryColor = isGold ? '#ffd700' : '#ffffff';
+  const secondaryColor = isGold ? '#b8860b' : '#8a9ba8';
+  const gemColor = isGold ? '#e63946' : '#00d4ff';
+
+  ctx.save();
+  ctx.translate(fx, fy - 68 * scale);
+  // Pendulum swing with head roll & inertia
+  ctx.rotate(roll * 1.15 + Math.sin(t * 3) * 0.04 * yaw);
+
+  // 1. Hairline chain descending forehead
+  const chainLen = 70 * scale;
+  ctx.strokeStyle = primaryColor;
+  ctx.lineWidth = 2.4 * scale;
+  ctx.setLineDash([3 * scale, 3 * scale]);
+  ctx.beginPath();
+  ctx.moveTo(0, 0);
+  ctx.lineTo(0, chainLen);
+  ctx.stroke();
+  ctx.setLineDash([]);
+
+  // Top hair hook/clasp
+  ctx.beginPath();
+  ctx.arc(0, 0, 4 * scale, 0, Math.PI * 2);
+  ctx.fillStyle = primaryColor;
+  ctx.fill();
+
+  // 2. Center Medallion / Pendant
+  ctx.translate(0, chainLen);
+  // Outer decorative ring
+  ctx.beginPath();
+  ctx.arc(0, 0, 15 * scale, 0, Math.PI * 2);
+  ctx.strokeStyle = primaryColor;
+  ctx.lineWidth = 3.2 * scale;
+  ctx.stroke();
+
+  // Gem fill
+  const pGrad = ctx.createRadialGradient(0, 0, 2, 0, 0, 15 * scale);
+  pGrad.addColorStop(0, '#ffffff');
+  pGrad.addColorStop(0.4, gemColor);
+  pGrad.addColorStop(1, secondaryColor);
+  ctx.fillStyle = pGrad;
+  ctx.beginPath();
+  ctx.arc(0, 0, 13 * scale, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Facet center gem
+  ctx.beginPath();
+  ctx.arc(0, 0, 5 * scale, 0, Math.PI * 2);
+  ctx.fillStyle = '#ffffff';
+  ctx.fill();
+
+  // Dangling pearls
+  const pearls = [-8, -4, 0, 4, 8];
+  pearls.forEach(px => {
+    const py = 16 * scale + Math.abs(px) * 0.45 * scale;
+    ctx.beginPath();
+    ctx.arc(px * scale, py, 2.6 * scale, 0, Math.PI * 2);
+    ctx.fillStyle = '#ffffff';
+    ctx.fill();
+    ctx.strokeStyle = primaryColor;
+    ctx.lineWidth = 0.9 * scale;
+    ctx.stroke();
+  });
+
+  // Radiant sparkle flare
+  const spkGlow = Math.sin(t * 5) * 0.3 + 0.7;
+  ctx.strokeStyle = `rgba(255, 255, 255, ${0.85 * spkGlow})`;
+  ctx.lineWidth = 1.6 * scale;
+  const spkLen = 10 * scale;
+  ctx.beginPath();
+  ctx.moveTo(0, -spkLen); ctx.lineTo(0, spkLen);
+  ctx.moveTo(-spkLen, 0); ctx.lineTo(spkLen, 0);
+  ctx.stroke();
+
+  ctx.restore();
+}
+
+// 3. EARRINGS 3D! (Dangling Royal Jhumkas on Left & Right Earlobes)
+function renderEarrings3D(ctx, pv, t) {
+  const scale = pv.scaleFactor;
+  const roll = pv.headAngleRad;
+  const lCheek = pv.leftCheekPosition2D;
+  const rCheek = pv.rightCheekPosition2D;
+
+  const drawEarring = (x, y, isLeft) => {
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.rotate(roll + Math.sin(t * 3.5 + (isLeft ? 0 : 0.6)) * 0.09);
+
+    // Earlobe stud
+    ctx.beginPath();
+    ctx.arc(0, 0, 5.5 * scale, 0, Math.PI * 2);
+    ctx.fillStyle = '#e63946';
+    ctx.fill();
+    ctx.strokeStyle = '#ffd700';
+    ctx.lineWidth = 2.2 * scale;
+    ctx.stroke();
+
+    // Dangling link
+    ctx.beginPath();
+    ctx.moveTo(0, 5.5 * scale);
+    ctx.lineTo(0, 18 * scale);
+    ctx.strokeStyle = '#ffd700';
+    ctx.lineWidth = 2.2 * scale;
+    ctx.stroke();
+
+    // Jhumka Bell
+    ctx.translate(0, 20 * scale);
+    ctx.beginPath();
+    ctx.arc(0, 0, 13 * scale, Math.PI, 0, false);
+    ctx.closePath();
+    const bellGrad = ctx.createLinearGradient(-13 * scale, 0, 13 * scale, 0);
+    bellGrad.addColorStop(0, '#ffd700');
+    bellGrad.addColorStop(0.5, '#ffeeaa');
+    bellGrad.addColorStop(1, '#c89600');
+    ctx.fillStyle = bellGrad;
+    ctx.fill();
+    ctx.strokeStyle = '#b8860b';
+    ctx.lineWidth = 1.6 * scale;
+    ctx.stroke();
+
+    // Pearl fringe
+    for (let i = -3; i <= 3; i++) {
+      ctx.beginPath();
+      ctx.arc(i * 3.8 * scale, 4.5 * scale, 2 * scale, 0, Math.PI * 2);
+      ctx.fillStyle = '#ffffff';
+      ctx.fill();
+    }
+    ctx.restore();
+  };
+
+  const leftEarX = lCheek.x - 32 * scale;
+  const leftEarY = lCheek.y + 12 * scale;
+  drawEarring(leftEarX, leftEarY, true);
+
+  const rightEarX = rCheek.x + 32 * scale;
+  const rightEarY = rCheek.y + 12 * scale;
+  drawEarring(rightEarX, rightEarY, false);
+}
+
+// 4. RING BOX (Velvet Jewel Box with Solitaire Diamond Ring)
+function renderRingBox(ctx, pv, t) {
+  const scale = pv.scaleFactor;
+  const boxX = 360;
+  const boxY = 1040;
+
+  ctx.save();
+  ctx.translate(boxX, boxY);
+
+  // Velvet Glow Aura
+  const aura = ctx.createRadialGradient(0, 0, 20 * scale, 0, 0, 130 * scale);
+  aura.addColorStop(0, 'rgba(255, 215, 0, 0.28)');
+  aura.addColorStop(0.5, 'rgba(180, 20, 40, 0.18)');
+  aura.addColorStop(1, 'rgba(0, 0, 0, 0)');
+  ctx.fillStyle = aura;
+  ctx.beginPath();
+  ctx.arc(0, 0, 130 * scale, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Velvet Box Body
+  ctx.beginPath();
+  ctx.roundRect(-85 * scale, -22 * scale, 170 * scale, 95 * scale, 18 * scale);
+  const boxGrad = ctx.createLinearGradient(-85 * scale, -22 * scale, 85 * scale, 75 * scale);
+  boxGrad.addColorStop(0, '#850e1b');
+  boxGrad.addColorStop(0.6, '#52060f');
+  boxGrad.addColorStop(1, '#2d0207');
+  ctx.fillStyle = boxGrad;
+  ctx.fill();
+  ctx.strokeStyle = '#d4af37';
+  ctx.lineWidth = 3.2 * scale;
+  ctx.stroke();
+
+  // Inner Velvet Cushion
+  ctx.beginPath();
+  ctx.ellipse(0, 0, 68 * scale, 26 * scale, 0, 0, Math.PI * 2);
+  ctx.fillStyle = '#1c0509';
+  ctx.fill();
+
+  // Gold Ring Band
+  ctx.beginPath();
+  ctx.ellipse(0, -19 * scale, 28 * scale, 11 * scale, 0, 0, Math.PI * 2);
+  ctx.strokeStyle = '#ffd700';
+  ctx.lineWidth = 5.5 * scale;
+  ctx.stroke();
+
+  // Solitaire Diamond
+  ctx.beginPath();
+  ctx.arc(0, -30 * scale, 15 * scale, 0, Math.PI * 2);
+  const gemGrad = ctx.createRadialGradient(-3 * scale, -33 * scale, 2 * scale, 0, -30 * scale, 15 * scale);
+  gemGrad.addColorStop(0, '#ffffff');
+  gemGrad.addColorStop(0.4, '#d8f6ff');
+  gemGrad.addColorStop(1, '#00b4d8');
+  ctx.fillStyle = gemGrad;
+  ctx.fill();
+  ctx.strokeStyle = '#ffffff';
+  ctx.lineWidth = 1.6 * scale;
+  ctx.stroke();
+
+  // Starburst Gleam Flare
+  const flareScale = (Math.sin(t * 5) * 0.3 + 1.0) * scale;
+  ctx.save();
+  ctx.translate(0, -30 * scale);
+  ctx.rotate(t * 0.8);
+  ctx.strokeStyle = 'rgba(255, 255, 255, 0.95)';
+  ctx.lineWidth = 2.2 * scale;
+  const fLen = 24 * flareScale;
+  ctx.beginPath();
+  ctx.moveTo(0, -fLen); ctx.lineTo(0, fLen);
+  ctx.moveTo(-fLen, 0); ctx.lineTo(fLen, 0);
+  ctx.stroke();
+  ctx.restore();
+
+  ctx.restore();
+}
+
+// 5. BANGLE (3D Isometric Rotating Gold Kada with Rubies)
+function renderBangle(ctx, pv, t) {
+  const scale = pv.scaleFactor;
+  const bx = 360;
+  const by = 1010;
+
+  ctx.save();
+  ctx.translate(bx, by);
+
+  const rotAngle = t * 1.2;
+  const wobble = Math.sin(rotAngle) * 0.16;
+  ctx.rotate(wobble);
+
+  // Golden Kada Glow
+  const glow = ctx.createRadialGradient(0, 0, 40 * scale, 0, 0, 140 * scale);
+  glow.addColorStop(0, 'rgba(255, 215, 0, 0.32)');
+  glow.addColorStop(1, 'rgba(0, 0, 0, 0)');
+  ctx.fillStyle = glow;
+  ctx.beginPath();
+  ctx.arc(0, 0, 140 * scale, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Outer Bangle Ellipse
+  ctx.beginPath();
+  ctx.ellipse(0, 0, 98 * scale, 50 * scale, 0, 0, Math.PI * 2);
+  const bangleGrad = ctx.createLinearGradient(-98 * scale, 0, 98 * scale, 0);
+  bangleGrad.addColorStop(0, '#c89600');
+  bangleGrad.addColorStop(0.25, '#ffeeaa');
+  bangleGrad.addColorStop(0.5, '#ffd700');
+  bangleGrad.addColorStop(0.75, '#ffeeaa');
+  bangleGrad.addColorStop(1, '#996600');
+  ctx.strokeStyle = bangleGrad;
+  ctx.lineWidth = 15 * scale;
+  ctx.stroke();
+
+  // Inner Filigree Line
+  ctx.beginPath();
+  ctx.ellipse(0, 0, 98 * scale, 50 * scale, 0, 0, Math.PI * 2);
+  ctx.strokeStyle = '#ffffff';
+  ctx.lineWidth = 2.2 * scale;
+  ctx.setLineDash([4 * scale, 6 * scale]);
+  ctx.stroke();
+  ctx.setLineDash([]);
+
+  // Rubies along perimeter
+  const numRubies = 8;
+  for (let i = 0; i < numRubies; i++) {
+    const angle = rotAngle + (i * Math.PI * 2 / numRubies);
+    const rx = Math.cos(angle) * 98 * scale;
+    const ry = Math.sin(angle) * 50 * scale;
+    ctx.beginPath();
+    ctx.arc(rx, ry, 5.2 * scale, 0, Math.PI * 2);
+    ctx.fillStyle = (i % 2 === 0) ? '#e63946' : '#00d4ff';
+    ctx.fill();
+    ctx.strokeStyle = '#ffd700';
+    ctx.lineWidth = 1.3 * scale;
+    ctx.stroke();
+  }
+
+  ctx.restore();
+}
+
+// 6. CELESTIAL KITSUNE (100% Landmark-Locked with Foxfire Mouth Blast)
 function renderCelestialKitsune(ctx, pv, t) {
   const fx = pv.foreheadPosition2D.x;
   const fy = pv.foreheadPosition2D.y;

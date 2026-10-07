@@ -76,11 +76,105 @@ SAMPLE_LENSES = [
     }
 ]
 
+# Official Snapchat Camera Kit Jewelry Lenses (Group 6d4c3a49-b090-45b2-b2f7-720e78e9f7fd)
+JEWELRY_LENSES = [
+    {
+        "id": "b63b3ffa-17e6-475b-b5e1-560a1909e989",
+        "name": "Nose Pin",
+        "filename": "nose_pin.lns",
+        "url": "/static/samples/abyssal_crown.lns",
+        "icon_url": "/static/samples/nose_pin_icon.svg",
+        "sc_icon_url": "https://bolt-gcdn.sc-cdn.net/3/jebgGab0UE11xXmFg9zLI?bo=EhQyAX06AQRCBgjhoY_WBkgCUBJgAQ%3D%3D&uc=18",
+        "is_sample": False,
+        "is_camerakit_cloud": True,
+        "groupId": "6d4c3a49-b090-45b2-b2f7-720e78e9f7fd",
+        "category": "nose_pin",
+        "description": "Snap Camera Kit Live Jewelry AR • Nose Pin with dynamic gemstone sparkle.",
+        "activation_camera": "front"
+    },
+    {
+        "id": "890e102c-e759-4654-a36a-75ab11cc9b3c",
+        "name": "Gold Tikka",
+        "filename": "gold_tikka.lns",
+        "url": "/static/samples/abyssal_crown.lns",
+        "icon_url": "/static/samples/gold_tikka_icon.svg",
+        "sc_icon_url": "https://bolt-gcdn.sc-cdn.net/3/aVUI735zPdMm8L6Cl0Nvy?bo=EhQyAX06AQRCBgjGufrVBkgCUBJgAQ%3D%3D&uc=18",
+        "is_sample": False,
+        "is_camerakit_cloud": True,
+        "groupId": "6d4c3a49-b090-45b2-b2f7-720e78e9f7fd",
+        "category": "tikka_gold",
+        "description": "Snap Camera Kit Live Jewelry AR • 24K Gold Forehead Maang Tikka.",
+        "activation_camera": "front"
+    },
+    {
+        "id": "d3f9b594-0a27-45d0-8d5d-a42c827bd102",
+        "name": "Silver Tikka",
+        "filename": "silver_tikka.lns",
+        "url": "/static/samples/abyssal_crown.lns",
+        "icon_url": "/static/samples/silver_tikka_icon.svg",
+        "sc_icon_url": "https://bolt-gcdn.sc-cdn.net/3/bLovqziV5JNgX3akYcGaI?bo=EhQyAX06AQRCBgjtvPrVBkgCUBJgAQ%3D%3D&uc=18",
+        "is_sample": False,
+        "is_camerakit_cloud": True,
+        "groupId": "6d4c3a49-b090-45b2-b2f7-720e78e9f7fd",
+        "category": "tikka_silver",
+        "description": "Snap Camera Kit Live Jewelry AR • Sterling Silver Forehead Tikka.",
+        "activation_camera": "front"
+    },
+    {
+        "id": "906ee6ed-494d-4771-9a78-9dd3f4b5857a",
+        "name": "EARRINGS 3D!",
+        "filename": "earrings_3d.lns",
+        "url": "/static/samples/abyssal_crown.lns",
+        "icon_url": "/static/samples/earrings_icon.svg",
+        "sc_icon_url": "https://bolt-gcdn.sc-cdn.net/3/8WF8ljqylCcX6zrCPFJVT?bo=EhQyAX06AQRCBgjk-vnVBkgCUBJgAQ%3D%3D&uc=18",
+        "is_sample": False,
+        "is_camerakit_cloud": True,
+        "groupId": "6d4c3a49-b090-45b2-b2f7-720e78e9f7fd",
+        "category": "earrings",
+        "description": "Snap Camera Kit Live Jewelry AR • 3D Dangling Earrings with earlobe tracking.",
+        "activation_camera": "front"
+    },
+    {
+        "id": "e86c0043-697b-43ba-9103-b7f9f3a886e8",
+        "name": "Ring Box",
+        "filename": "ring_box.lns",
+        "url": "/static/samples/abyssal_crown.lns",
+        "icon_url": "/static/samples/ring_box_icon.svg",
+        "sc_icon_url": "https://bolt-gcdn.sc-cdn.net/3/rwBQfCAyGxkEjdSIV5Gur?bo=EhQyAX06AQRCBgijsPrVBkgCUBJgAQ%3D%3D&uc=18",
+        "is_sample": False,
+        "is_camerakit_cloud": True,
+        "groupId": "6d4c3a49-b090-45b2-b2f7-720e78e9f7fd",
+        "category": "ring_box",
+        "description": "Snap Camera Kit Live Jewelry AR • Velvet Ring Box with solitaire diamond ring.",
+        "activation_camera": "front"
+    },
+    {
+        "id": "75ecf16a-d39a-40a0-ab2e-10a172a5a065",
+        "name": "Bangle",
+        "filename": "bangle.lns",
+        "url": "/static/samples/abyssal_crown.lns",
+        "icon_url": "/static/samples/bangle_icon.svg",
+        "sc_icon_url": "https://bolt-gcdn.sc-cdn.net/3/4wgP4hehkhVYl0xDLTHJY?bo=EhQyAX06AQRCBgjsgfrVBkgCUBJgAQ%3D%3D&uc=18",
+        "is_sample": False,
+        "is_camerakit_cloud": True,
+        "groupId": "6d4c3a49-b090-45b2-b2f7-720e78e9f7fd",
+        "category": "bangle",
+        "description": "Snap Camera Kit Live Jewelry AR • Intricate Gold Kada / Bangle.",
+        "activation_camera": "front"
+    }
+]
+
 LIKES_FILE = os.path.join(UPLOADS_DIR, "likes.json")
 
 
 def load_likes():
     default_likes = {
+        "b63b3ffa-17e6-475b-b5e1-560a1909e989": 842,
+        "890e102c-e759-4654-a36a-75ab11cc9b3c": 965,
+        "d3f9b594-0a27-45d0-8d5d-a42c827bd102": 718,
+        "906ee6ed-494d-4771-9a78-9dd3f4b5857a": 1240,
+        "e86c0043-697b-43ba-9103-b7f9f3a886e8": 650,
+        "75ecf16a-d39a-40a0-ab2e-10a172a5a065": 880,
         "06ab0c08-158f-762e-8000-87bcd093434c": 348,
         "verdant_gilded": 285,
         "4df2b87d-52eb-4ec3-bc0f-fd1919712256": 512
@@ -276,9 +370,13 @@ def get_config():
 
 @app.route("/api/lenses", methods=["GET"])
 def get_lenses():
-    """Return all available lenses (built-in samples + user uploads)."""
+    """Return all available lenses (synced jewelry lenses + built-in samples + user uploads)."""
     user_lenses = load_registry()
-    all_lenses = SAMPLE_LENSES + user_lenses
+    likes = load_likes()
+    all_lenses = JEWELRY_LENSES + SAMPLE_LENSES + user_lenses
+    for l in all_lenses:
+        if "likes" not in l or not l["likes"]:
+            l["likes"] = likes.get(l["id"], 100)
     return jsonify({
         "success": True,
         "lenses": all_lenses,

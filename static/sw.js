@@ -1,13 +1,19 @@
-const CACHE_NAME = 'snapar-studio-v1';
+const CACHE_NAME = 'snapar-studio-v3';
 const ASSETS_TO_CACHE = [
   '/',
-  '/static/css/studio.css',
-  '/static/js/studio.js',
+  '/static/css/studio.css?v=20261007_v3',
+  '/static/js/studio.js?v=20261007_v3',
   '/static/js/jszip.min.js',
   '/static/vendor/three/three.min.js',
   '/static/vendor/three/OBJLoader.js',
   '/static/vendor/mediapipe/face_mesh.js',
   '/static/manifest.json',
+  '/static/samples/nose_pin_icon.svg',
+  '/static/samples/gold_tikka_icon.svg',
+  '/static/samples/silver_tikka_icon.svg',
+  '/static/samples/earrings_icon.svg',
+  '/static/samples/ring_box_icon.svg',
+  '/static/samples/bangle_icon.svg',
   '/static/samples/abyssal_crown.lns',
   '/static/samples/abyssal_crown_icon.png',
   '/static/samples/abyssal_crown.obj',
@@ -44,9 +50,9 @@ self.addEventListener('activate', (event) => {
 });
 
 self.addEventListener('fetch', (event) => {
-  // Stale-while-revalidate for static assets, network-first for API
   const url = new URL(event.request.url);
 
+  // 1. API: network-first
   if (url.pathname.startsWith('/api/')) {
     event.respondWith(
       fetch(event.request).catch(() => {
@@ -58,10 +64,24 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
+  // 2. Navigation / HTML: network-first with cache fallback
+  if (event.request.mode === 'navigate' || url.pathname === '/') {
+    event.respondWith(
+      fetch(event.request).then((response) => {
+        if (response && response.status === 200) {
+          const respClone = response.clone();
+          caches.open(CACHE_NAME).then(c => c.put(event.request, respClone));
+        }
+        return response;
+      }).catch(() => caches.match('/'))
+    );
+    return;
+  }
+
+  // 3. Static assets: Stale-while-revalidate
   event.respondWith(
     caches.match(event.request).then((cachedResponse) => {
       if (cachedResponse) {
-        // Fetch fresh in background
         fetch(event.request).then((networkResponse) => {
           if (networkResponse && networkResponse.status === 200) {
             caches.open(CACHE_NAME).then((cache) => cache.put(event.request, networkResponse));

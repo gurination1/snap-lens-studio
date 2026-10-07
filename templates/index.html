@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
   <title>SnapAR Studio • Mobile Web Lens Tester & Live AR</title>
-  <link rel="stylesheet" href="/static/css/studio.css">
+  <link rel="stylesheet" href="/static/css/studio.css?v=20261007_v3">
   <link rel="manifest" href="/static/manifest.json">
   <meta name="theme-color" content="#06080d">
   <meta name="apple-mobile-web-app-capable" content="yes">
@@ -53,10 +53,10 @@
         <div class="camera-hud-top">
           <!-- Active Lens Badge -->
           <div class="hud-lens-tag" onclick="toggleStudioDrawer()" title="Tap to inspect lens details">
-            <img id="hud-lens-icon" class="hud-lens-thumb" src="/static/samples/abyssal_crown_icon.png" alt="Lens Icon">
+            <img id="hud-lens-icon" class="hud-lens-thumb" src="/static/samples/nose_pin_icon.svg" alt="Lens Icon">
             <div class="hud-lens-text">
-              <span id="hud-lens-name" class="hud-lens-title">Abyssal Crown</span>
-              <span id="hud-lens-status" class="hud-lens-meta">Local AR 60 FPS</span>
+              <span id="hud-lens-name" class="hud-lens-title">Nose Pin</span>
+              <span id="hud-lens-status" class="hud-lens-meta">Snap Jewelry AR • Live</span>
             </div>
             <span class="hud-lens-chevron">▾</span>
           </div>
@@ -520,7 +520,7 @@
   <!-- Google MediaPipe FaceMesh (Local Assets for 468 3D Landmark Tracking) -->
   <script src="/static/vendor/mediapipe/face_mesh.js"></script>
   <!-- Main Studio JavaScript -->
-  <script src="/static/js/studio.js"></script>
+  <script src="/static/js/studio.js?v=20261007_v3"></script>
 
 </body>
 </html>
