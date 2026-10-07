@@ -269,7 +269,7 @@ def get_config():
     return jsonify({
         "success": True,
         "lens_group_id": os.environ.get("CAMERA_KIT_LENS_GROUP_ID", "6d4c3a49-b090-45b2-b2f7-720e78e9f7fd"),
-        "api_token": os.environ.get("CAMERA_KIT_PRODUCTION_TOKEN", "eyJhbGciOiJIUzI1NiIsImtpZCI6IkNhbnZhc1MyU0hNQUNQcm9kIiwidHlwIjoiSldUIn0.eyJhdWQiOiJjYW52YXMtY2FudmFzYXBpIiwiaXNzIjoiY2FudmFzLXMyc3Rva2VuIiwibmJmIjoxNzkxMjE3MjU5LCJzdWIiOiJhODM3NzNlNi1lZTgwLTQ2MTMtYmI0ZC1kZWRhMDJiMWVmODd-UFJPRFVDVElPTn40Mjk1ODcxOC0yNTIxLTRjMTctODAxZC03Y2FlMWMyY2IyNTkifQ.mNbYo1anah5FrGBwF5ciT4SWU4FxCJELEvcI1jwq6sQ"),
+        "api_token": os.environ.get("CAMERA_KIT_PRODUCTION_TOKEN", "eyJhbGciOiJIUzI1NiIsImtpZCI6IkNhbnZhc1MyU0hNQUNQcm9kIiwidHlwIjoiSldUIn0.eyJhdWQiOiJjYW52YXMtY2FudmFzYXBpIiwiaXNzIjoiY2FudmFzLXMyc3Rva2VuIiwibmJmIjoxNzkxMjE3MjU5LCJzdWIiOiJhODM3NzNlNi1lZTgwLTQ2MTMtYmI0ZC1kZWRhMDJiMWVmODd-U1RBR0lOR340OGM0NjgyZS00NTkyLTRiMDQtYjMyOC1kNDI4NTg1MDZlMTMifQ.LqzSwK_sfExKloe_v2TJKr0E2bjPPUe4dwuQlPCAOew"),
         "staging_api_token": os.environ.get("CAMERA_KIT_STAGING_TOKEN", "eyJhbGciOiJIUzI1NiIsImtpZCI6IkNhbnZhc1MyU0hNQUNQcm9kIiwidHlwIjoiSldUIn0.eyJhdWQiOiJjYW52YXMtY2FudmFzYXBpIiwiaXNzIjoiY2FudmFzLXMyc3Rva2VuIiwibmJmIjoxNzkxMjE3MjU5LCJzdWIiOiJhODM3NzNlNi1lZTgwLTQ2MTMtYmI0ZC1kZWRhMDJiMWVmODd-U1RBR0lOR340OGM0NjgyZS00NTkyLTRiMDQtYjMyOC1kNDI4NTg1MDZlMTMifQ.LqzSwK_sfExKloe_v2TJKr0E2bjPPUe4dwuQlPCAOew")
     })
 

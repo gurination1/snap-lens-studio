@@ -22,8 +22,8 @@ let loadedLensesList = [];
 
 // Camera Kit Server Config State
 let serverLensGroupId = "6d4c3a49-b090-45b2-b2f7-720e78e9f7fd";
-let serverApiToken = "";
-let serverStagingToken = "";
+let serverApiToken = "eyJhbGciOiJIUzI1NiIsImtpZCI6IkNhbnZhc1MyU0hNQUNQcm9kIiwidHlwIjoiSldUIn0.eyJhdWQiOiJjYW52YXMtY2FudmFzYXBpIiwiaXNzIjoiY2FudmFzLXMyc3Rva2VuIiwibmJmIjoxNzkxMjE3MjU5LCJzdWIiOiJhODM3NzNlNi1lZTgwLTQ2MTMtYmI0ZC1kZWRhMDJiMWVmODd-U1RBR0lOR340OGM0NjgyZS00NTkyLTRiMDQtYjMyOC1kNDI4NTg1MDZlMTMifQ.LqzSwK_sfExKloe_v2TJKr0E2bjPPUe4dwuQlPCAOew";
+let serverStagingToken = "eyJhbGciOiJIUzI1NiIsImtpZCI6IkNhbnZhc1MyU0hNQUNQcm9kIiwidHlwIjoiSldUIn0.eyJhdWQiOiJjYW52YXMtY2FudmFzYXBpIiwiaXNzIjoiY2FudmFzLXMyc3Rva2VuIiwibmJmIjoxNzkxMjE3MjU5LCJzdWIiOiJhODM3NzNlNi1lZTgwLTQ2MTMtYmI0ZC1kZWRhMDJiMWVmODd-U1RBR0lOR340OGM0NjgyZS00NTkyLTRiMDQtYjMyOC1kNDI4NTg1MDZlMTMifQ.LqzSwK_sfExKloe_v2TJKr0E2bjPPUe4dwuQlPCAOew";
 
 // Local AR Engine State
 let localRenderLoopId = null;
@@ -136,6 +136,15 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (groupInput) groupInput.value = savedGroupId;
     if (tokenInput && savedToken) tokenInput.value = savedToken;
   } catch (_) {}
+
+  // 4. Automatically sync Snap Camera Kit jewelry lenses in the background
+  const targetGroup = serverLensGroupId || DEFAULT_LENS_GROUP_ID;
+  if (targetGroup) {
+    console.log('[SnapAR AutoSync] Automatically loading jewelry lenses from group:', targetGroup);
+    setTimeout(() => {
+      window.syncLensGroup(targetGroup).catch(e => console.warn('[AutoSync Warning]', e));
+    }, 600);
+  }
 });
 
 // PWA Service Worker & Install Prompt
@@ -2731,7 +2740,7 @@ async function initCameraKitAsync() {
 }
 
 const DEFAULT_LENS_GROUP_ID = "6d4c3a49-b090-45b2-b2f7-720e78e9f7fd";
-const DEFAULT_API_TOKEN = "eyJhbGciOiJIUzI1NiIsImtpZCI6IkNhbnZhc1MyU0hNQUNQcm9kIiwidHlwIjoiSldUIn0.eyJhdWQiOiJjYW52YXMtY2FudmFzYXBpIiwiaXNzIjoiY2FudmFzLXMyc3Rva2VuIiwibmJmIjoxNzkxMjE3MjU5LCJzdWIiOiJhODM3NzNlNi1lZTgwLTQ2MTMtYmI0ZC1kZWRhMDJiMWVmODd-UFJPRFVDVElPTn40Mjk1ODcxOC0yNTIxLTRjMTctODAxZC03Y2FlMWMyY2IyNTkifQ.mNbYo1anah5FrGBwF5ciT4SWU4FxCJELEvcI1jwq6sQ";
+const DEFAULT_API_TOKEN = "eyJhbGciOiJIUzI1NiIsImtpZCI6IkNhbnZhc1MyU0hNQUNQcm9kIiwidHlwIjoiSldUIn0.eyJhdWQiOiJjYW52YXMtY2FudmFzYXBpIiwiaXNzIjoiY2FudmFzLXMyc3Rva2VuIiwibmJmIjoxNzkxMjE3MjU5LCJzdWIiOiJhODM3NzNlNi1lZTgwLTQ2MTMtYmI0ZC1kZWRhMDJiMWVmODd-U1RBR0lOR340OGM0NjgyZS00NTkyLTRiMDQtYjMyOC1kNDI4NTg1MDZlMTMifQ.LqzSwK_sfExKloe_v2TJKr0E2bjPPUe4dwuQlPCAOew";
 const DEFAULT_STAGING_TOKEN = "eyJhbGciOiJIUzI1NiIsImtpZCI6IkNhbnZhc1MyU0hNQUNQcm9kIiwidHlwIjoiSldUIn0.eyJhdWQiOiJjYW52YXMtY2FudmFzYXBpIiwiaXNzIjoiY2FudmFzLXMyc3Rva2VuIiwibmJmIjoxNzkxMjE3MjU5LCJzdWIiOiJhODM3NzNlNi1lZTgwLTQ2MTMtYmI0ZC1kZWRhMDJiMWVmODd-U1RBR0lOR340OGM0NjgyZS00NTkyLTRiMDQtYjMyOC1kNDI4NTg1MDZlMTMifQ.LqzSwK_sfExKloe_v2TJKr0E2bjPPUe4dwuQlPCAOew";
 
 window.switchTokenEnv = function(mode) {
